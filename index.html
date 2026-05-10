@@ -2496,8 +2496,6 @@ function renderSync() {
     if (!newCfg.token) { toast('Falta el token'); return; }
 
     try {
-      const wasNewGist = !newCfg.gistId;
-
       // If no gist ID, create one
       if (!newCfg.gistId) {
         toast('Creando gist privado…');
@@ -2512,50 +2510,13 @@ function renderSync() {
       syncState.status = 'synced';
       syncState.message = 'configurado';
       updateSyncIndicator();
+      toast('Sync configurado correctamente');
 
-      if (wasNewGist) {
-        // Brand-new gist — safe to push current state
-        toast('Sync configurado, subiendo datos…');
-        await syncPush();
-      } else {
-        // Existing gist — DO NOT push automatically; that could overwrite remote data.
-        // Try to pull and merge instead.
-        toast('Sync configurado. Comprobando datos remotos…');
-        try {
-          const { remotePapers } = await syncPull();
-          if (remotePapers.length === 0 && papers.length > 0) {
-            // Remote is empty but local has data — safe to push
-            const ok = confirm(`El gist remoto está vacío y tienes ${papers.length} referencias locales. ¿Subir tus datos al gist?`);
-            if (ok) await syncPush();
-          } else if (remotePapers.length > 0 && papers.length === 0) {
-            // Local empty, remote has data — adopt remote
-            for (const r of remotePapers) {
-              if (!r.id) r.id = uid();
-              await dbPut(r);
-              papers.push(r);
-            }
-            papers.sort((a,b) => (b.added || 0) - (a.added || 0));
-            toast(`${remotePapers.length} referencias descargadas`);
-          } else if (remotePapers.length > 0 && papers.length > 0) {
-            // Both have data — let user decide
-            const ok = confirm(`Local: ${papers.length} referencias. Remoto: ${remotePapers.length}. ¿Fusionar (recomendado)? (Cancelar = no hacer nada de momento)`);
-            if (ok) {
-              const result = await mergeRemoteIntoLocal(remotePapers);
-              toast(`Fusión: ${result.added} añadidas, ${result.updated} actualizadas`);
-              await syncPush();
-            }
-          } else {
-            // Both empty
-            toast('Sync configurado (ambos vacíos)');
-          }
-        } catch (pullErr) {
-          console.warn('[Atlas Sync] Initial pull failed:', pullErr);
-          alert('Conectado al gist, pero falló al leer datos remotos:\n\n' + pullErr.message + '\n\nNo se ha modificado nada. Revisa la passphrase.');
-        }
-      }
+      // NOTE: removed automatic push that was overwriting remote data.
+      // Now users must explicitly pull or push from the buttons.
       render();
     } catch (err) {
-      console.error(err);
+      console.error('[Atlas Sync] Connect error:', err);
       toast('Error: ' + err.message.substring(0, 60));
       syncState.status = 'error';
       syncState.message = 'verifica el token';
