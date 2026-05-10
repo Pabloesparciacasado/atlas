@@ -2496,6 +2496,8 @@ function renderSync() {
     if (!newCfg.token) { toast('Falta el token'); return; }
 
     try {
+      const wasNewGist = !newCfg.gistId;
+
       // If no gist ID, create one
       if (!newCfg.gistId) {
         toast('Creando gist privado…');
@@ -2510,10 +2512,47 @@ function renderSync() {
       syncState.status = 'synced';
       syncState.message = 'configurado';
       updateSyncIndicator();
-      toast('Sync configurado correctamente');
 
-      // Initial push
-      await syncPush();
+      if (wasNewGist) {
+        // Brand-new gist — safe to push current state
+        toast('Sync configurado, subiendo datos…');
+        await syncPush();
+      } else {
+        // Existing gist — DO NOT push automatically; that could overwrite remote data.
+        // Try to pull and merge instead.
+        toast('Sync configurado. Comprobando datos remotos…');
+        try {
+          const { remotePapers } = await syncPull();
+          if (remotePapers.length === 0 && papers.length > 0) {
+            // Remote is empty but local has data — safe to push
+            const ok = confirm(`El gist remoto está vacío y tienes ${papers.length} referencias locales. ¿Subir tus datos al gist?`);
+            if (ok) await syncPush();
+          } else if (remotePapers.length > 0 && papers.length === 0) {
+            // Local empty, remote has data — adopt remote
+            for (const r of remotePapers) {
+              if (!r.id) r.id = uid();
+              await dbPut(r);
+              papers.push(r);
+            }
+            papers.sort((a,b) => (b.added || 0) - (a.added || 0));
+            toast(`${remotePapers.length} referencias descargadas`);
+          } else if (remotePapers.length > 0 && papers.length > 0) {
+            // Both have data — let user decide
+            const ok = confirm(`Local: ${papers.length} referencias. Remoto: ${remotePapers.length}. ¿Fusionar (recomendado)? (Cancelar = no hacer nada de momento)`);
+            if (ok) {
+              const result = await mergeRemoteIntoLocal(remotePapers);
+              toast(`Fusión: ${result.added} añadidas, ${result.updated} actualizadas`);
+              await syncPush();
+            }
+          } else {
+            // Both empty
+            toast('Sync configurado (ambos vacíos)');
+          }
+        } catch (pullErr) {
+          console.warn('[Atlas Sync] Initial pull failed:', pullErr);
+          alert('Conectado al gist, pero falló al leer datos remotos:\n\n' + pullErr.message + '\n\nNo se ha modificado nada. Revisa la passphrase.');
+        }
+      }
       render();
     } catch (err) {
       console.error(err);
@@ -2604,7 +2643,19 @@ function renderExport() {
   const c = document.getElementById('content');
 
   if (papers.length === 0) {
-    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Sin referencias para exportar.</p></div>';
+    c.innerHTML = `
+      <div class="empty">
+        <div class="empty-mark">∅</div>
+        <p>Sin referencias para exportar.</p>
+        <p style="font-size:0.95rem; margin-top:1rem; color:var(--muted);">¿Tienes un backup JSON de otra instalación? Impórtalo aquí.</p>
+        <button class="btn primary" id="import-json-empty" style="margin-top:1.5rem;">↑ Importar JSON</button>
+        <input type="file" id="import-json-input-empty" accept="application/json" hidden>
+      </div>
+    `;
+    document.getElementById('import-json-empty').onclick = () => {
+      document.getElementById('import-json-input-empty').click();
+    };
+    document.getElementById('import-json-input-empty').onchange = handleJsonImport;
     return;
   }
 
@@ -2653,49 +2704,52 @@ function renderExport() {
     document.getElementById('import-json-input').click();
   };
 
-  document.getElementById('import-json-input').onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const imported = JSON.parse(text);
-      if (!Array.isArray(imported)) { toast('Archivo no válido: se esperaba un array'); return; }
+  document.getElementById('import-json-input').onchange = handleJsonImport;
+}
 
-      const choice = papers.length > 0
-        ? confirm(`Tienes ${papers.length} referencias locales. ¿Fusionar con las ${imported.length} importadas? (Cancelar = reemplazar todo)`)
-        : true;
+// Reusable JSON import handler (used both from Export view and empty state)
+async function handleJsonImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const imported = JSON.parse(text);
+    if (!Array.isArray(imported)) { toast('Archivo no válido: se esperaba un array'); return; }
 
-      if (!choice) {
-        // Replace all
-        for (const p of papers) await dbDel(p.id);
-        papers = [];
-      }
+    const choice = papers.length > 0
+      ? confirm(`Tienes ${papers.length} referencias locales. ¿Fusionar con las ${imported.length} importadas? (Cancelar = reemplazar todo)`)
+      : true;
 
-      let added = 0, updated = 0;
-      for (const p of imported) {
-        if (!p.id) p.id = uid();
-        const existing = papers.find(x => x.id === p.id || (x.citekey && x.citekey === p.citekey));
-        if (existing) {
-          // Keep most recently added
-          if ((p.added || 0) > (existing.added || 0)) {
-            Object.assign(existing, p);
-            await dbPut(existing);
-            updated++;
-          }
-        } else {
-          await dbPut(p);
-          papers.unshift(p);
-          added++;
-        }
-      }
-      render();
-      toast(`Importado: ${added} nuevas, ${updated} actualizadas`);
-      if (added > 0 || updated > 0) schedulePush();
-    } catch (err) {
-      console.error(err);
-      toast('Error al leer el archivo JSON');
+    if (!choice) {
+      // Replace all
+      for (const p of papers) await dbDel(p.id);
+      papers = [];
     }
-  };
+
+    let added = 0, updated = 0;
+    for (const p of imported) {
+      if (!p.id) p.id = uid();
+      const existing = papers.find(x => x.id === p.id || (x.citekey && x.citekey === p.citekey));
+      if (existing) {
+        // Keep most recently added
+        if ((p.added || 0) > (existing.added || 0)) {
+          Object.assign(existing, p);
+          await dbPut(existing);
+          updated++;
+        }
+      } else {
+        await dbPut(p);
+        papers.unshift(p);
+        added++;
+      }
+    }
+    render();
+    toast(`Importado: ${added} nuevas, ${updated} actualizadas`);
+    if (added > 0 || updated > 0) schedulePush();
+  } catch (err) {
+    console.error(err);
+    toast('Error al leer el archivo JSON');
+  }
 }
 
 // ============= MODAL =============
