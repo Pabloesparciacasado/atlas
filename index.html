@@ -1379,15 +1379,58 @@ async function syncPull() {
   syncState.message = 'descargando…';
   updateSyncIndicator();
 
+  console.log('[Atlas Sync] Pulling from gist:', cfg.gistId);
   const gist = await fetchGist(cfg.gistId, cfg.token);
   const file = gist.files['atlas-data.json'];
   if (!file) throw new Error('Archivo de datos no encontrado en el gist');
 
-  const payload = JSON.parse(file.content);
-  const decrypted = await decryptPayload(payload, cfg.passphrase);
-  const remoteData = JSON.parse(decrypted);
-  const remotePapers = remoteData.papers || remoteData; // backwards compat
+  console.log('[Atlas Sync] Gist file truncated?:', file.truncated, 'size:', file.size);
+
+  let rawContent = file.content;
+  // GitHub truncates files > ~1MB in the API response and gives a raw_url instead
+  if (file.truncated && file.raw_url) {
+    console.log('[Atlas Sync] File truncated by API, fetching from raw_url:', file.raw_url);
+    const rawResp = await fetch(file.raw_url, {
+      headers: { 'Authorization': `Bearer ${cfg.token}` }
+    });
+    if (!rawResp.ok) throw new Error(`No se pudo leer el contenido completo (${rawResp.status})`);
+    rawContent = await rawResp.text();
+    console.log('[Atlas Sync] Raw fetched, length:', rawContent.length);
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(rawContent);
+  } catch (err) {
+    console.error('[Atlas Sync] Failed to parse gist content as JSON:', err);
+    console.log('[Atlas Sync] First 200 chars of content:', rawContent.substring(0, 200));
+    throw new Error('El gist no contiene JSON válido');
+  }
+
+  console.log('[Atlas Sync] Payload encrypted?:', payload.encrypted);
+
+  let decrypted;
+  try {
+    decrypted = await decryptPayload(payload, cfg.passphrase);
+  } catch (err) {
+    console.error('[Atlas Sync] Decryption failed:', err);
+    throw new Error('Error al descifrar — verifica la passphrase');
+  }
+
+  console.log('[Atlas Sync] Decrypted text length:', decrypted.length, 'first 100 chars:', decrypted.substring(0, 100));
+
+  let remoteData;
+  try {
+    remoteData = JSON.parse(decrypted);
+  } catch (err) {
+    console.error('[Atlas Sync] Failed to parse decrypted content as JSON:', err);
+    throw new Error('Datos descifrados no son JSON válido');
+  }
+
+  const remotePapers = remoteData.papers || (Array.isArray(remoteData) ? remoteData : []);
   const remoteUpdated = remoteData.updatedAt || 0;
+
+  console.log('[Atlas Sync] Remote papers count:', remotePapers.length);
 
   return { remotePapers, remoteUpdated, gistUpdatedAt: gist.updated_at };
 }
@@ -2522,8 +2565,11 @@ function renderSync() {
           render();
         }
       } catch (err) {
-        console.error(err);
-        toast('Error al descargar: ' + err.message.substring(0, 50));
+        console.error('[Atlas Sync] Pull error:', err);
+        syncState.status = 'error';
+        syncState.message = err.message.substring(0, 30);
+        updateSyncIndicator();
+        alert('Error al descargar:\n\n' + err.message + '\n\n(Abre la consola con F12 para más detalles)');
       }
     };
 
