@@ -1,0 +1,2880 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas — Gestor de referencias</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root {
+  --ink: #1a1814;
+  --paper: #f4f0e8;
+  --paper-dark: #e8e2d4;
+  --accent: #b8442e;
+  --accent-soft: #d4946b;
+  --muted: #8a8378;
+  --line: #2a2620;
+  --gold: #a8843a;
+  --shadow: rgba(26,24,20,0.08);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Fraunces', Georgia, serif;
+  font-feature-settings: 'ss01', 'ss02';
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(184, 68, 46, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(168, 132, 58, 0.05) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  opacity: 0.04;
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: multiply;
+}
+
+.app {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+/* SIDEBAR */
+.sidebar {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 2.5rem 1.75rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  margin-bottom: 3rem;
+}
+
+.brand-mark {
+  font-family: 'Fraunces', serif;
+  font-size: 2.4rem;
+  font-weight: 300;
+  font-style: italic;
+  letter-spacing: -0.02em;
+  line-height: 0.9;
+  color: var(--paper);
+}
+
+.brand-mark span {
+  color: var(--accent-soft);
+  font-weight: 600;
+}
+
+.brand-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+.nav-section {
+  margin-bottom: 2rem;
+}
+
+.nav-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-label::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.nav-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  margin: 0.15rem -0.75rem;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--paper-dark);
+  transition: all 0.2s;
+  border-left: 2px solid transparent;
+}
+
+.nav-item:hover {
+  background: rgba(244,240,232,0.05);
+  color: var(--paper);
+}
+
+.nav-item.active {
+  background: rgba(212,148,107,0.1);
+  border-left-color: var(--accent-soft);
+  color: var(--paper);
+}
+
+.nav-count {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.tag-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--paper-dark);
+  border-radius: 2px;
+  transition: all 0.15s;
+}
+
+.tag-item:hover { background: rgba(244,240,232,0.05); }
+.tag-item.active { color: var(--accent-soft); }
+.tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+  display: inline-block;
+}
+
+/* MAIN */
+.main {
+  padding: 0;
+  position: relative;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 3rem;
+  border-bottom: 1px solid rgba(26,24,20,0.1);
+  background: var(--paper);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(8px);
+}
+
+.view-title {
+  font-size: 1.15rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ink);
+}
+
+.view-title strong {
+  font-style: normal;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 1px;
+}
+
+.btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+
+.btn.primary:hover {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.btn.ghost {
+  border-color: rgba(26,24,20,0.2);
+  color: var(--muted);
+}
+
+/* CONTENT */
+.content { padding: 2.5rem 3rem 4rem; }
+
+/* HERO STATS */
+.hero {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 0;
+  margin-bottom: 3rem;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.hero-cell {
+  padding: 1.5rem 1.5rem 1.5rem 0;
+  border-right: 1px solid rgba(26,24,20,0.1);
+}
+
+.hero-cell:last-child { border-right: none; }
+
+.hero-cell:first-child { padding-right: 2rem; }
+
+.hero-tagline {
+  font-size: 1.7rem;
+  line-height: 1.15;
+  font-weight: 300;
+  font-style: italic;
+  letter-spacing: -0.01em;
+}
+
+.hero-tagline em {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.stat-num {
+  font-size: 2.8rem;
+  font-weight: 300;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.stat-num span { color: var(--accent); font-style: italic; }
+
+.stat-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+/* PAPERS LIST */
+.papers-list { display: flex; flex-direction: column; }
+
+.paper {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 1.5rem;
+  padding: 1.75rem 0;
+  border-bottom: 1px solid rgba(26,24,20,0.08);
+  cursor: pointer;
+  transition: all 0.2s;
+  align-items: start;
+}
+
+.paper:hover {
+  padding-left: 0.75rem;
+  background: linear-gradient(90deg, rgba(184,68,46,0.04), transparent 60%);
+}
+
+.paper-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  padding-top: 0.4rem;
+}
+
+.paper-main { min-width: 0; }
+
+.paper-title {
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 0.4rem;
+  letter-spacing: -0.01em;
+}
+
+.paper-meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.paper-meta span { color: var(--accent); }
+
+.paper-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.tag-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(26,24,20,0.15);
+  border-radius: 999px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: rgba(26,24,20,0.02);
+}
+
+.paper-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding-top: 0.3rem;
+}
+
+.read-badge {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1.5px solid var(--ink);
+}
+
+.read-badge.read { background: var(--accent); border-color: var(--accent); }
+.read-badge.reading { background: var(--gold); border-color: var(--gold); }
+
+.cite-key {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+}
+
+/* EMPTY STATE */
+.empty {
+  text-align: center;
+  padding: 6rem 2rem;
+  color: var(--muted);
+}
+
+.empty-mark {
+  font-size: 5rem;
+  font-style: italic;
+  color: var(--accent);
+  opacity: 0.3;
+  font-weight: 300;
+  margin-bottom: 1rem;
+}
+
+.empty p {
+  font-size: 1.2rem;
+  font-style: italic;
+  font-weight: 300;
+}
+
+.empty .btn { margin-top: 2rem; }
+
+/* MODAL */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(26,24,20,0.6);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 2rem;
+}
+
+.modal-bg.open { display: flex; }
+
+.modal {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2.5rem;
+  position: relative;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+}
+
+.modal-close {
+  position: absolute;
+  top: 1.25rem; right: 1.25rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: 'Fraunces', serif;
+  width: 32px; height: 32px;
+}
+
+.modal-close:hover { color: var(--accent); }
+
+.modal h2 {
+  font-size: 1.8rem;
+  font-weight: 400;
+  font-style: italic;
+  margin-bottom: 0.3rem;
+  letter-spacing: -0.02em;
+}
+
+.modal-section {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(26,24,20,0.1);
+}
+
+.modal-section h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.85rem;
+  font-weight: 500;
+}
+
+label {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+  margin-top: 0.9rem;
+}
+
+input, textarea, select {
+  width: 100%;
+  padding: 0.75rem 0.9rem;
+  font-family: 'Fraunces', serif;
+  font-size: 0.95rem;
+  background: rgba(26,24,20,0.03);
+  border: 1px solid rgba(26,24,20,0.15);
+  color: var(--ink);
+  border-radius: 1px;
+  transition: all 0.2s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--paper);
+}
+
+textarea { resize: vertical; min-height: 80px; font-size: 0.95rem; line-height: 1.5; }
+
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; }
+
+.modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(26,24,20,0.1);
+  justify-content: flex-end;
+}
+
+/* DROP ZONE */
+.drop {
+  border: 2px dashed rgba(26,24,20,0.2);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 1rem;
+}
+
+.drop:hover, .drop.over {
+  border-color: var(--accent);
+  background: rgba(184,68,46,0.04);
+}
+
+.drop-icon {
+  font-size: 2rem;
+  font-style: italic;
+  color: var(--accent);
+  font-weight: 300;
+  margin-bottom: 0.5rem;
+}
+
+.drop p {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* DETAIL VIEW */
+.detail-header {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+.detail-back {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  display: inline-block;
+}
+
+.detail-back:hover { color: var(--accent); }
+
+.detail-title {
+  font-size: 2.4rem;
+  font-weight: 300;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.detail-authors {
+  font-size: 1.05rem;
+  font-style: italic;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.detail-citekey {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: rgba(184,68,46,0.08);
+  padding: 0.3rem 0.6rem;
+  display: inline-block;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+}
+
+.detail-section {
+  margin-bottom: 2rem;
+}
+
+.detail-section h3 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(26,24,20,0.1);
+  padding-bottom: 0.5rem;
+}
+
+.detail-section p {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.detail-section.notes p { white-space: pre-wrap; }
+
+.bibtex-block {
+  background: var(--ink);
+  color: var(--paper-dark);
+  padding: 1.25rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  position: relative;
+  overflow-x: auto;
+}
+
+.bibtex-copy {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: var(--paper);
+  padding: 0.4rem 0.7rem;
+  border: none;
+  cursor: pointer;
+}
+
+.bibtex-copy:hover { background: var(--accent-soft); }
+
+/* MAP VIEW */
+.map-container {
+  background: var(--paper-dark);
+  border: 1px solid var(--line);
+  height: 600px;
+  position: relative;
+  overflow: hidden;
+}
+
+#map-svg { width: 100%; height: 100%; }
+
+.map-legend {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: var(--paper);
+  padding: 1rem;
+  border: 1px solid var(--line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  max-width: 220px;
+}
+
+/* INSIGHTS */
+.sync-indicator {
+  margin-top: 2rem;
+  padding: 0.75rem;
+  background: rgba(244,240,232,0.04);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sync-indicator:hover { background: rgba(244,240,232,0.08); }
+
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.sync-dot.synced { background: #6ba368; box-shadow: 0 0 8px rgba(107,163,104,0.5); }
+.sync-dot.pending { background: var(--gold); animation: pulse 1.5s infinite; }
+.sync-dot.error { background: var(--accent); }
+.sync-dot.off { background: var(--muted); opacity: 0.4; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.sync-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--paper-dark);
+}
+
+.sync-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.sync-form-section {
+  background: var(--paper-dark);
+  padding: 1.5rem;
+  border-left: 3px solid var(--accent);
+  margin-bottom: 1.5rem;
+}
+
+.sync-form-section h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.sync-status-large {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+  background: var(--paper-dark);
+  border: 1px solid var(--line);
+  margin-bottom: 1.5rem;
+}
+
+.sync-status-large .sync-dot { width: 14px; height: 14px; }
+
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.insight-card {
+  background: var(--paper-dark);
+  border-left: 3px solid var(--accent);
+  padding: 1.5rem;
+}
+
+.insight-card h4 {
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.15rem;
+  margin-bottom: 0.75rem;
+}
+
+.insight-card p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.insight-card .meta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.gap-list {
+  list-style: none;
+  padding: 0;
+}
+
+.gap-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(26,24,20,0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+.gap-list li:last-child { border-bottom: none; }
+
+.gap-name { font-style: italic; }
+
+.gap-bar {
+  flex: 1;
+  height: 4px;
+  background: rgba(26,24,20,0.08);
+  position: relative;
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 200px;
+}
+
+.gap-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent);
+  transform-origin: left;
+}
+
+/* TOAST */
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 0.85rem 1.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  z-index: 200;
+  transition: transform 0.3s;
+  border-left: 3px solid var(--accent);
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* SEARCH */
+.search-box {
+  position: relative;
+  margin-bottom: 2rem;
+}
+
+.search-box input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  padding: 0.6rem 0;
+  font-size: 1.4rem;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.search-box input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.search-box input:focus {
+  border-bottom-color: var(--accent);
+}
+
+/* FILTER PILLS */
+.filters {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(26,24,20,0.15);
+  background: transparent;
+  cursor: pointer;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: all 0.2s;
+}
+
+.filter-pill:hover { border-color: var(--ink); color: var(--ink); }
+
+.filter-pill.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { position: relative; height: auto; }
+  .hero { grid-template-columns: 1fr 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
+  .insights-grid { grid-template-columns: 1fr; }
+  .content, .topbar { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">at<span>l</span>as</div>
+      <div class="brand-sub">— ref. manager</div>
+    </div>
+
+    <nav>
+      <div class="nav-section">
+        <div class="nav-label">Vistas</div>
+        <div class="nav-item active" data-view="library">Biblioteca <span class="nav-count" id="cnt-all">0</span></div>
+        <div class="nav-item" data-view="reading">En lectura <span class="nav-count" id="cnt-reading">0</span></div>
+        <div class="nav-item" data-view="unread">Por leer <span class="nav-count" id="cnt-unread">0</span></div>
+        <div class="nav-item" data-view="map">Mapa de temas</div>
+        <div class="nav-item" data-view="aimap">Mapa IA <span style="font-family:'JetBrains Mono'; font-size:0.55rem; letter-spacing:0.15em; color:var(--accent-soft); margin-left:0.3rem;">NEW</span></div>
+        <div class="nav-item" data-view="insights">Síntesis</div>
+        <div class="nav-item" data-view="export">Exportar .bib</div>
+        <div class="nav-item" data-view="sync">Sincronización</div>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-label">Temas</div>
+        <div id="tags-nav"></div>
+      </div>
+    </nav>
+
+    <div class="sync-indicator" id="sync-indicator" onclick="document.querySelector('[data-view=sync]').click()">
+      <div class="sync-dot off" id="sync-dot"></div>
+      <div>
+        <div class="sync-label" id="sync-label">Solo local</div>
+        <div class="sync-sub" id="sync-sub">no configurado</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="view-title" id="view-title"><strong>Biblioteca</strong> — todas las referencias</div>
+      <div class="actions">
+        <button class="btn ghost" id="btn-import">Importar BibTeX</button>
+        <button class="btn primary" id="btn-add">+ Nueva referencia</button>
+      </div>
+    </div>
+
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-bg" id="modal-add">
+  <div class="modal">
+    <button class="modal-close" data-close>×</button>
+    <h2>Nueva referencia</h2>
+    <p style="color:var(--muted); font-size:0.9rem; font-style:italic; margin-top:0.3rem;">Sube un PDF para extraer metadatos automáticamente, o rellena el formulario.</p>
+
+    <div class="modal-section">
+      <h3>Subir PDF</h3>
+      <div class="drop" id="drop-zone">
+        <div class="drop-icon">↓</div>
+        <p>Arrastra un PDF aquí o haz clic</p>
+        <input type="file" id="pdf-input" accept="application/pdf" hidden>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Detalles</h3>
+      <label>Título</label>
+      <input type="text" id="f-title" placeholder="Title of the paper">
+
+      <div class="row-2">
+        <div>
+          <label>Autores</label>
+          <input type="text" id="f-authors" placeholder="Smith, J. and Doe, A.">
+        </div>
+        <div>
+          <label>Año</label>
+          <input type="text" id="f-year" placeholder="2024">
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div>
+          <label>Revista / Conferencia</label>
+          <input type="text" id="f-journal" placeholder="Nature, NeurIPS, ...">
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select id="f-type">
+            <option value="article">Artículo</option>
+            <option value="inproceedings">Conferencia</option>
+            <option value="book">Libro</option>
+            <option value="incollection">Capítulo</option>
+            <option value="techreport">Reporte técnico</option>
+            <option value="misc">Otro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row-2">
+        <div>
+          <label>DOI</label>
+          <input type="text" id="f-doi" placeholder="10.xxxx/xxxxx">
+        </div>
+        <div>
+          <label>Cite key</label>
+          <input type="text" id="f-citekey" placeholder="se autogenera">
+        </div>
+      </div>
+
+      <label>Temas (separados por coma)</label>
+      <div style="display:flex; gap:0.5rem; align-items:stretch;">
+        <input type="text" id="f-tags" placeholder="machine learning, NLP, transformers" style="flex:1;">
+        <button type="button" id="auto-tags" class="btn" style="white-space:nowrap; padding:0.7rem 0.9rem;" title="Extraer temas automáticamente del título, abstract y notas">✦ Sugerir</button>
+      </div>
+      <div id="suggested-tags" style="margin-top:0.5rem; display:flex; flex-wrap:wrap; gap:0.3rem;"></div>
+
+      <label>Estado</label>
+      <select id="f-status">
+        <option value="unread">Por leer</option>
+        <option value="reading">Leyendo</option>
+        <option value="read">Leído</option>
+      </select>
+
+      <label>Resumen / abstract</label>
+      <textarea id="f-abstract" placeholder="Resumen del paper..."></textarea>
+
+      <label>Mis notas</label>
+      <textarea id="f-notes" rows="5" placeholder="Ideas clave, conexiones, citas relevantes..."></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>Cancelar</button>
+      <button class="btn primary" id="save-paper">Guardar referencia</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-bg" id="modal-import">
+  <div class="modal">
+    <button class="modal-close" data-close>×</button>
+    <h2>Importar BibTeX</h2>
+    <p style="color:var(--muted); font-size:0.9rem; font-style:italic; margin-top:0.3rem;">Pega tu archivo .bib o entradas individuales. Se reconocerán automáticamente.</p>
+
+    <div class="modal-section">
+      <textarea id="bibtex-input" rows="14" placeholder="@article{smith2024,&#10;  title={...},&#10;  author={...},&#10;  year={2024}&#10;}"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn ghost" data-close>Cancelar</button>
+      <button class="btn primary" id="parse-bibtex">Importar entradas</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============= NLP ENGINE (browser-side, no external APIs) =============
+const STOPWORDS = new Set([
+  // English
+  'the','a','an','and','or','but','if','then','else','when','at','by','for','with','about','against','between','into','through','during','before','after','above','below','to','from','up','down','in','out','on','off','over','under','again','further','then','once','here','there','all','any','both','each','few','more','most','other','some','such','no','nor','not','only','own','same','so','than','too','very','can','will','just','should','now','this','that','these','those','i','me','my','myself','we','our','ours','ourselves','you','your','yours','he','him','his','she','her','hers','it','its','they','them','their','what','which','who','whom','whose','as','of','is','are','was','were','be','been','being','have','has','had','do','does','did','would','could','may','might','must','shall','also','however','therefore','thus','while','whereas','since','because','although','though','within','without','among','via','per','et','al','etc','ie','eg',
+  // Spanish
+  'el','la','los','las','un','una','unos','unas','y','o','pero','si','entonces','cuando','en','por','para','con','sobre','contra','entre','desde','hasta','durante','antes','despues','después','arriba','abajo','dentro','fuera','encima','debajo','aqui','aquí','alli','allí','todo','todos','toda','todas','cada','algunos','algunas','algun','algún','mas','más','menos','otro','otros','otra','otras','tal','tales','no','si','sí','solo','sólo','propio','mismo','tan','muy','puede','podra','podrá','sera','será','siendo','este','esta','estos','estas','ese','esa','esos','esas','aquel','aquella','del','al','que','quien','quienes','cuyo','cuya','cuyos','cuyas','como','cómo','donde','dónde','cual','cuál','es','son','era','eran','sea','sean','ser','siendo','sido','ha','han','habia','había','tener','tiene','tienen','hacer','hace','hacen','tambien','también','ademas','además','aunque','asi','así',
+  // Academic noise — words that appear in almost every paper
+  'paper','papers','article','articles','study','studies','research','work','works','approach','approaches','method','methods','methodology','result','results','finding','findings','conclusion','conclusions','introduction','abstract','section','figure','table','equation','using','used','use','uses','show','shows','shown','showed','present','presents','presented','presenting','propose','proposes','proposed','proposing','consider','considers','considered','demonstrate','demonstrates','demonstrated','provide','provides','provided','providing','obtain','obtains','obtained','obtaining','authors','author','journal','volume','issue','pages','vol','pp','doi','arxiv','preprint','published','publication','publisher','editor','university','department','copyright','reserved','rights','available','online','license','first','second','third','one','two','three','four','five','six','seven','eight','nine','ten','many','much','several','various','different','similar','specific','general','particular','important','significant','large','small','high','low','new','old','recent','current','typical','common','main','key','given','found','find','described','describe','discuss','discusses','discussed','include','includes','included','based','among','within','due','well','number','numbers','data','dataset','datasets','set','sets','case','cases','example','examples','task','tasks','model','models','system','systems','problem','problems','issue','issues','effect','effects','impact','impacts','context','contexts','order','terms','field','fields','area','areas','type','types','kind','form','forms','state','states','time','times','part','parts','overall','additionally','furthermore','moreover','indeed','rather','particular','particularly','generally','often','usually','commonly','recently','currently','herein','hereby','thereof','wherein','whereby','whose','whether','either','neither','non','versus','vs','ours','their','our',
+  // Spanish academic
+  'estudio','estudios','articulo','artículo','articulos','artículos','investigacion','investigación','trabajo','trabajos','enfoque','enfoques','metodo','método','metodos','métodos','metodologia','metodología','resultado','resultados','hallazgo','hallazgos','conclusion','conclusión','conclusiones','introduccion','introducción','resumen','seccion','sección','figura','tabla','ecuacion','ecuación','utilizando','usando','utilizado','utilizada','mostrar','muestra','presenta','presentado','propone','propuesto','considerar','considera','demostrar','demuestra','proporcionar','proporciona','obtener','obtiene','autores','autor','revista','volumen','numero','número','paginas','páginas','disponible','primero','segundo','tercero','muchos','varios','diferente','similar','especifico','específico','general','particular','importante','significativo','grande','pequeño','alto','bajo','nuevo','viejo','reciente','actual','tipico','típico','comun','común','principal','clave','dado','encontrado','encontrar','descrito','describir','discutir','discute','incluye','incluido','basado','dentro','debido','bien','numero','numeros','datos','conjunto','conjuntos','caso','casos','ejemplo','ejemplos','tarea','tareas','modelo','modelos','sistema','sistemas','problema','problemas','efecto','efectos','impacto','contexto','orden','terminos','términos','campo','campos','area','área','areas','áreas','tipo','tipos','forma','formas','estado','tiempo','parte','partes','tambien','también','ademas','además','particular','particularmente','generalmente','frecuentemente','usualmente','comunmente','comúnmente','recientemente','actualmente','asi','así'
+]);
+
+function normalize(text) {
+  return (text || '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // strip diacritics for matching
+    .replace(/[^a-z0-9\s\-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tokenize(text) {
+  return normalize(text).split(' ').filter(w =>
+    w.length >= 3 && w.length <= 25 && !STOPWORDS.has(w) && !/^\d+$/.test(w)
+  );
+}
+
+// Generate 1-grams, 2-grams, 3-grams
+function ngrams(tokens, n) {
+  const out = [];
+  for (let i = 0; i <= tokens.length - n; i++) {
+    out.push(tokens.slice(i, i+n).join(' '));
+  }
+  return out;
+}
+
+function extractCandidates(text) {
+  // Use raw tokens (preserving sequence) and also build n-grams
+  const rawTokens = normalize(text).split(' ').filter(w => w.length >= 2);
+  const filtered = rawTokens.filter(w => !STOPWORDS.has(w) && w.length >= 3 && !/^\d+$/.test(w));
+
+  const candidates = new Map();
+
+  // Unigrams
+  filtered.forEach(t => candidates.set(t, (candidates.get(t) || 0) + 1));
+
+  // Bigrams: only if both words are non-stopwords and reasonable length
+  for (let i = 0; i < rawTokens.length - 1; i++) {
+    const a = rawTokens[i], b = rawTokens[i+1];
+    if (a.length >= 3 && b.length >= 3 && !STOPWORDS.has(a) && !STOPWORDS.has(b) && !/^\d+$/.test(a) && !/^\d+$/.test(b)) {
+      const bg = a + ' ' + b;
+      candidates.set(bg, (candidates.get(bg) || 0) + 1);
+    }
+  }
+
+  // Trigrams: middle word can be a stopword (e.g. "theory of mind", "law of large")
+  for (let i = 0; i < rawTokens.length - 2; i++) {
+    const a = rawTokens[i], b = rawTokens[i+1], c = rawTokens[i+2];
+    if (a.length >= 3 && c.length >= 3 && !STOPWORDS.has(a) && !STOPWORDS.has(c) && !/^\d+$/.test(a) && !/^\d+$/.test(c)) {
+      const tg = a + ' ' + b + ' ' + c;
+      candidates.set(tg, (candidates.get(tg) || 0) + 1);
+    }
+  }
+
+  return candidates;
+}
+
+// Compute IDF over the corpus of all papers
+function buildCorpusIDF(allPapers) {
+  const N = allPapers.length || 1;
+  const df = new Map();
+
+  allPapers.forEach(p => {
+    const text = [p.title, p.abstract, p.notes].filter(Boolean).join(' ');
+    const cands = extractCandidates(text);
+    for (const term of cands.keys()) {
+      df.set(term, (df.get(term) || 0) + 1);
+    }
+  });
+
+  const idf = new Map();
+  for (const [term, count] of df.entries()) {
+    idf.set(term, Math.log((N + 1) / (count + 1)) + 1);
+  }
+  return idf;
+}
+
+// Score terms for a single paper using TF-IDF
+function scorePaper(paper, idf, fallbackBoost = true) {
+  const text = [paper.title, paper.abstract, paper.notes].filter(Boolean).join(' ');
+  if (!text.trim()) return [];
+
+  // Title gets extra weight
+  const titleText = (paper.title || '');
+  const titleCands = extractCandidates(titleText);
+  const allCands = extractCandidates(text);
+
+  const scores = new Map();
+  for (const [term, tf] of allCands.entries()) {
+    const titleBoost = titleCands.has(term) ? 2.5 : 1;
+    const lengthBoost = term.split(' ').length === 1 ? 1 : term.split(' ').length === 2 ? 1.4 : 1.2;
+    const i = idf.get(term) || (fallbackBoost ? 1.5 : 0);
+    if (i === 0) continue;
+    scores.set(term, tf * i * titleBoost * lengthBoost);
+  }
+
+  return [...scores.entries()].sort((a,b) => b[1] - a[1]);
+}
+
+// Suggest top N tags for a paper given the corpus
+function suggestTagsForPaper(paper, corpus, topN = 5) {
+  const idf = buildCorpusIDF(corpus.length > 0 ? corpus : [paper]);
+  const ranked = scorePaper(paper, idf, corpus.length === 0);
+
+  // Deduplicate: if "neural network" appears, drop "neural" and "network" individually
+  const taken = [];
+  for (const [term, score] of ranked) {
+    const words = term.split(' ');
+    // Skip if a longer phrase already taken contains this term
+    if (taken.some(t => t.term.includes(term) && t.term !== term)) continue;
+    // Skip if this is a longer phrase but a sub-phrase is already taken with high score
+    if (words.length > 1) {
+      // Remove any single-word taken terms that are part of this multi-word term
+      for (let i = taken.length - 1; i >= 0; i--) {
+        if (term.split(' ').includes(taken[i].term)) taken.splice(i, 1);
+      }
+    }
+    taken.push({ term, score });
+    if (taken.length >= topN) break;
+  }
+
+  return taken.map(t => t.term);
+}
+
+// Cluster papers by shared key terms (simple co-occurrence clustering)
+function clusterPapersByTopics(papersWithTags) {
+  // Build term -> papers index
+  const termIndex = new Map();
+  papersWithTags.forEach(p => {
+    (p._aiTerms || []).forEach(term => {
+      if (!termIndex.has(term)) termIndex.set(term, new Set());
+      termIndex.get(term).add(p.id);
+    });
+  });
+
+  // A "topic cluster" = a term that appears in ≥2 papers, ranked by importance
+  const clusters = [...termIndex.entries()]
+    .filter(([term, ids]) => ids.size >= 2)
+    .map(([term, ids]) => ({
+      term,
+      paperIds: [...ids],
+      size: ids.size
+    }))
+    .sort((a, b) => b.size - a.size);
+
+  // Merge highly overlapping clusters (Jaccard > 0.7)
+  const merged = [];
+  const used = new Set();
+  for (let i = 0; i < clusters.length; i++) {
+    if (used.has(i)) continue;
+    const main = { ...clusters[i], aliases: [clusters[i].term], paperIds: new Set(clusters[i].paperIds) };
+    for (let j = i + 1; j < clusters.length; j++) {
+      if (used.has(j)) continue;
+      const a = main.paperIds, b = new Set(clusters[j].paperIds);
+      const inter = [...a].filter(x => b.has(x)).length;
+      const union = new Set([...a, ...b]).size;
+      if (union > 0 && inter / union > 0.7) {
+        main.aliases.push(clusters[j].term);
+        clusters[j].paperIds.forEach(id => main.paperIds.add(id));
+        used.add(j);
+      }
+    }
+    main.paperIds = [...main.paperIds];
+    main.size = main.paperIds.length;
+    merged.push(main);
+  }
+
+  return merged;
+}
+
+// ============= GITHUB GIST SYNC =============
+// Config is stored in localStorage (token + gistId), data in IndexedDB
+const SYNC_CFG_KEY = 'atlas_sync_cfg';
+
+function loadSyncCfg() {
+  try { return JSON.parse(localStorage.getItem(SYNC_CFG_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveSyncCfg(cfg) {
+  localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
+}
+
+let syncState = {
+  status: 'off',     // off | synced | pending | syncing | error
+  lastSync: null,
+  message: 'no configurado',
+  pendingPushTimer: null
+};
+
+function updateSyncIndicator() {
+  const dot = document.getElementById('sync-dot');
+  const label = document.getElementById('sync-label');
+  const sub = document.getElementById('sync-sub');
+  if (!dot) return;
+
+  dot.className = 'sync-dot ' + syncState.status;
+  const labels = {
+    off: 'Solo local',
+    synced: 'Sincronizado',
+    pending: 'Cambios sin subir',
+    syncing: 'Sincronizando…',
+    error: 'Error de sync'
+  };
+  label.textContent = labels[syncState.status] || 'Estado';
+  sub.textContent = syncState.message || '—';
+}
+
+// Simple symmetric encryption with Web Crypto (AES-GCM derived from passphrase)
+async function deriveKey(passphrase) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(passphrase), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('atlas-static-salt-v1'), iterations: 100000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptPayload(text, passphrase) {
+  if (!passphrase) return { encrypted: false, data: text };
+  const key = await deriveKey(passphrase);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(text));
+  return {
+    encrypted: true,
+    iv: btoa(String.fromCharCode(...iv)),
+    data: btoa(String.fromCharCode(...new Uint8Array(ct)))
+  };
+}
+
+async function decryptPayload(payload, passphrase) {
+  if (!payload.encrypted) return payload.data;
+  if (!passphrase) throw new Error('Datos cifrados — falta passphrase');
+  const key = await deriveKey(passphrase);
+  const iv = Uint8Array.from(atob(payload.iv), c => c.charCodeAt(0));
+  const ct = Uint8Array.from(atob(payload.data), c => c.charCodeAt(0));
+  const dec = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+  return new TextDecoder().decode(dec);
+}
+
+// GitHub API helpers
+async function ghRequest(path, token, opts = {}) {
+  const res = await fetch('https://api.github.com' + path, {
+    ...opts,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opts.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${err}`);
+  }
+  return res.json();
+}
+
+async function createGist(token) {
+  const data = await ghRequest('/gists', token, {
+    method: 'POST',
+    body: JSON.stringify({
+      description: 'Atlas reference manager — synced data',
+      public: false,
+      files: {
+        'atlas-data.json': { content: JSON.stringify({ encrypted: false, data: '[]', meta: { created: Date.now() } }) }
+      }
+    })
+  });
+  return data.id;
+}
+
+async function fetchGist(gistId, token) {
+  return ghRequest(`/gists/${gistId}`, token);
+}
+
+async function updateGist(gistId, token, content) {
+  return ghRequest(`/gists/${gistId}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      files: { 'atlas-data.json': { content } }
+    })
+  });
+}
+
+// Pull from gist
+async function syncPull() {
+  const cfg = loadSyncCfg();
+  if (!cfg.token || !cfg.gistId) throw new Error('Sync no configurado');
+
+  syncState.status = 'syncing';
+  syncState.message = 'descargando…';
+  updateSyncIndicator();
+
+  const gist = await fetchGist(cfg.gistId, cfg.token);
+  const file = gist.files['atlas-data.json'];
+  if (!file) throw new Error('Archivo de datos no encontrado en el gist');
+
+  const payload = JSON.parse(file.content);
+  const decrypted = await decryptPayload(payload, cfg.passphrase);
+  const remoteData = JSON.parse(decrypted);
+  const remotePapers = remoteData.papers || remoteData; // backwards compat
+  const remoteUpdated = remoteData.updatedAt || 0;
+
+  return { remotePapers, remoteUpdated, gistUpdatedAt: gist.updated_at };
+}
+
+// Push to gist
+async function syncPush() {
+  const cfg = loadSyncCfg();
+  if (!cfg.token || !cfg.gistId) return;
+
+  syncState.status = 'syncing';
+  syncState.message = 'subiendo…';
+  updateSyncIndicator();
+
+  const data = JSON.stringify({ papers, updatedAt: Date.now(), version: 1 });
+  const payload = await encryptPayload(data, cfg.passphrase);
+  await updateGist(cfg.gistId, cfg.token, JSON.stringify(payload));
+
+  syncState.status = 'synced';
+  syncState.lastSync = Date.now();
+  syncState.message = 'hace un momento';
+  cfg.lastPush = Date.now();
+  saveSyncCfg(cfg);
+  updateSyncIndicator();
+}
+
+// Schedule a debounced push (after edits)
+function schedulePush() {
+  const cfg = loadSyncCfg();
+  if (!cfg.token || !cfg.gistId) return;
+
+  if (syncState.pendingPushTimer) clearTimeout(syncState.pendingPushTimer);
+  syncState.status = 'pending';
+  syncState.message = 'subiendo en 3s…';
+  updateSyncIndicator();
+
+  syncState.pendingPushTimer = setTimeout(async () => {
+    try { await syncPush(); }
+    catch (err) {
+      console.error(err);
+      syncState.status = 'error';
+      syncState.message = err.message.substring(0, 40);
+      updateSyncIndicator();
+    }
+  }, 3000);
+}
+
+// Merge strategies on initial pull
+async function mergeRemoteIntoLocal(remotePapers) {
+  const localById = new Map(papers.map(p => [p.id, p]));
+  const localByCitekey = new Map(papers.filter(p => p.citekey).map(p => [p.citekey, p]));
+
+  let added = 0, updated = 0, kept = 0;
+  for (const r of remotePapers) {
+    const existing = (r.id && localById.get(r.id)) || (r.citekey && localByCitekey.get(r.citekey));
+    if (existing) {
+      // Last-write-wins by `added` timestamp (or just keep newer)
+      const remoteTime = r.added || 0;
+      const localTime = existing.added || 0;
+      if (remoteTime > localTime) {
+        Object.assign(existing, r);
+        await dbPut(existing);
+        updated++;
+      } else {
+        kept++;
+      }
+    } else {
+      if (!r.id) r.id = uid();
+      papers.unshift(r);
+      await dbPut(r);
+      added++;
+    }
+  }
+  return { added, updated, kept };
+}
+
+// ============= STORAGE (IndexedDB) =============
+const DB_NAME = 'atlas_refs';
+const DB_VER = 1;
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = (e) => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('papers')) {
+        d.createObjectStore('papers', { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+    req.onerror = (e) => reject(e);
+  });
+}
+
+function tx(mode='readonly') {
+  return db.transaction('papers', mode).objectStore('papers');
+}
+
+function dbAll() {
+  return new Promise(res => {
+    const out = [];
+    const cur = tx().openCursor();
+    cur.onsuccess = e => {
+      const c = e.target.result;
+      if (c) { out.push(c.value); c.continue(); }
+      else res(out);
+    };
+  });
+}
+
+function dbPut(p) {
+  return new Promise(res => {
+    const r = tx('readwrite').put(p);
+    r.onsuccess = () => res();
+  });
+}
+
+function dbDel(id) {
+  return new Promise(res => {
+    const r = tx('readwrite').delete(id);
+    r.onsuccess = () => res();
+  });
+}
+
+// ============= STATE =============
+let papers = [];
+let currentView = 'library';
+let currentTag = null;
+let currentDetailId = null;
+let currentFilter = 'all';
+
+// ============= UTILS =============
+function uid() { return 'p_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function genCiteKey(authors, year, title) {
+  const firstAuthor = (authors || '').split(/\s+and\s+|,/)[0].trim().split(/\s+/)[0] || 'anon';
+  const firstWord = (title || '').split(/\s+/).find(w => w.length > 3) || 'paper';
+  return (firstAuthor + (year || '') + firstWord).toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// Topic color from string hash
+function tagColor(tag) {
+  let h = 0;
+  for (let i = 0; i < tag.length; i++) h = (h << 5) - h + tag.charCodeAt(i);
+  const hue = Math.abs(h) % 360;
+  return `hsl(${hue}, 55%, 45%)`;
+}
+
+// ============= BIBTEX =============
+function paperToBibtex(p) {
+  const fields = [];
+  if (p.title) fields.push(`  title = {${p.title}}`);
+  if (p.authors) fields.push(`  author = {${p.authors}}`);
+  if (p.year) fields.push(`  year = {${p.year}}`);
+  if (p.journal) fields.push(`  ${p.type === 'inproceedings' ? 'booktitle' : 'journal'} = {${p.journal}}`);
+  if (p.doi) fields.push(`  doi = {${p.doi}}`);
+  if (p.abstract) fields.push(`  abstract = {${p.abstract.replace(/[{}]/g,'')}}`);
+  return `@${p.type || 'article'}{${p.citekey},\n${fields.join(',\n')}\n}`;
+}
+
+function parseBibtex(text) {
+  const entries = [];
+  const re = /@(\w+)\s*\{\s*([^,]+),([\s\S]*?)\n\}/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const type = m[1].toLowerCase();
+    const key = m[2].trim();
+    const body = m[3];
+    const fields = {};
+    const fre = /(\w+)\s*=\s*[{"]([\s\S]*?)["}](?=\s*[,\n])/g;
+    let f;
+    while ((f = fre.exec(body)) !== null) {
+      fields[f[1].toLowerCase()] = f[2].trim().replace(/\s+/g, ' ');
+    }
+    entries.push({
+      id: uid(),
+      type,
+      citekey: key,
+      title: fields.title || '',
+      authors: fields.author || '',
+      year: fields.year || '',
+      journal: fields.journal || fields.booktitle || '',
+      doi: fields.doi || '',
+      abstract: fields.abstract || '',
+      tags: [],
+      status: 'unread',
+      notes: '',
+      added: Date.now()
+    });
+  }
+  return entries;
+}
+
+// ============= PDF EXTRACTION =============
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+async function extractPDFMeta(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const meta = await pdf.getMetadata();
+
+  let firstPageText = '';
+  if (pdf.numPages > 0) {
+    const page = await pdf.getPage(1);
+    const content = await page.getTextContent();
+    firstPageText = content.items.map(i => i.str).join(' ');
+  }
+
+  // Heuristic title: largest text on page 1, or PDF metadata
+  let title = (meta.info && meta.info.Title) || '';
+  if (!title || title.length < 5) {
+    // Get first non-trivial line of page 1 text
+    const lines = firstPageText.split(/\s{4,}|\n/).filter(l => l.trim().length > 10);
+    title = lines[0] || '';
+    title = title.substring(0, 200);
+  }
+
+  let authors = (meta.info && meta.info.Author) || '';
+
+  // Heuristic year from text
+  const yearMatch = firstPageText.match(/\b(19|20)\d{2}\b/);
+  const year = yearMatch ? yearMatch[0] : '';
+
+  // Heuristic DOI
+  const doiMatch = firstPageText.match(/10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i);
+  const doi = doiMatch ? doiMatch[0] : '';
+
+  // Abstract heuristic
+  const absMatch = firstPageText.match(/abstract[\s.:—-]*([\s\S]{50,1500}?)(?=\b(introduction|keywords|1\.\s*introduction)\b)/i);
+  const abstract = absMatch ? absMatch[1].trim().replace(/\s+/g,' ') : '';
+
+  return { title: title.trim(), authors, year, doi, abstract };
+}
+
+// ============= RENDER =============
+function render() {
+  const c = document.getElementById('content');
+  updateCounts();
+  updateTagsNav();
+
+  if (currentDetailId) { renderDetail(); return; }
+
+  switch (currentView) {
+    case 'library': renderLibrary('all'); break;
+    case 'reading': renderLibrary('reading'); break;
+    case 'unread': renderLibrary('unread'); break;
+    case 'map': renderMap(); break;
+    case 'aimap': renderAIMap(); break;
+    case 'insights': renderInsights(); break;
+    case 'export': renderExport(); break;
+    case 'sync': renderSync(); break;
+  }
+}
+
+function updateCounts() {
+  document.getElementById('cnt-all').textContent = papers.length.toString().padStart(2,'0');
+  document.getElementById('cnt-reading').textContent = papers.filter(p => p.status === 'reading').length.toString().padStart(2,'0');
+  document.getElementById('cnt-unread').textContent = papers.filter(p => p.status === 'unread').length.toString().padStart(2,'0');
+}
+
+function updateTagsNav() {
+  const counts = {};
+  papers.forEach(p => (p.tags || []).forEach(t => counts[t] = (counts[t]||0)+1));
+  const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+  const nav = document.getElementById('tags-nav');
+  if (sorted.length === 0) {
+    nav.innerHTML = '<div style="font-size:0.75rem; color:var(--muted); font-style:italic; padding:0.4rem 0.5rem;">Aún sin temas</div>';
+    return;
+  }
+  nav.innerHTML = sorted.map(([t, n]) => `
+    <div class="tag-item ${currentTag === t ? 'active' : ''}" data-tag="${escapeHtml(t)}">
+      <span><span class="tag-dot" style="background:${tagColor(t)}"></span>${escapeHtml(t)}</span>
+      <span class="nav-count">${n}</span>
+    </div>
+  `).join('');
+  nav.querySelectorAll('.tag-item').forEach(el => {
+    el.onclick = () => {
+      const t = el.dataset.tag;
+      currentTag = currentTag === t ? null : t;
+      currentView = 'library';
+      currentDetailId = null;
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === 'library'));
+      render();
+    };
+  });
+}
+
+function renderLibrary(filterStatus) {
+  let list = papers;
+  if (filterStatus !== 'all') list = list.filter(p => p.status === filterStatus);
+  if (currentTag) list = list.filter(p => (p.tags || []).includes(currentTag));
+
+  const titleEl = document.getElementById('view-title');
+  const labels = { all: 'todas las referencias', reading: 'en lectura activa', unread: 'pendientes de leer' };
+  titleEl.innerHTML = `<strong>${filterStatus === 'all' ? 'Biblioteca' : filterStatus === 'reading' ? 'En lectura' : 'Por leer'}</strong> — ${labels[filterStatus]}${currentTag ? ` <em style="color:var(--accent);">/ ${escapeHtml(currentTag)}</em>` : ''}`;
+
+  const c = document.getElementById('content');
+
+  // Stats
+  const totalTags = new Set();
+  papers.forEach(p => (p.tags || []).forEach(t => totalTags.add(t)));
+  const totalRead = papers.filter(p => p.status === 'read').length;
+
+  let html = '';
+
+  if (filterStatus === 'all' && !currentTag) {
+    html += `
+      <div class="hero">
+        <div class="hero-cell">
+          <div class="hero-tagline">Una <em>biblioteca personal</em> para construir conocimiento, paper a paper.</div>
+        </div>
+        <div class="hero-cell">
+          <div class="stat-num">${papers.length.toString().padStart(2,'0')}</div>
+          <div class="stat-label">Referencias</div>
+        </div>
+        <div class="hero-cell">
+          <div class="stat-num"><span>${totalRead.toString().padStart(2,'0')}</span></div>
+          <div class="stat-label">Leídas</div>
+        </div>
+        <div class="hero-cell">
+          <div class="stat-num">${totalTags.size.toString().padStart(2,'0')}</div>
+          <div class="stat-label">Temas</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Search & filters
+  html += `
+    <div class="search-box">
+      <input type="text" id="search" placeholder="Buscar por título, autor, tema..." value="${escapeHtml(window._search || '')}">
+    </div>
+  `;
+
+  if (list.length === 0) {
+    html += `
+      <div class="empty">
+        <div class="empty-mark">∅</div>
+        <p>${papers.length === 0 ? 'Tu biblioteca está vacía.' : 'No hay resultados con estos filtros.'}</p>
+        ${papers.length === 0 ? '<button class="btn primary" onclick="document.getElementById(\'btn-add\').click()">Añadir primera referencia</button>' : ''}
+      </div>
+    `;
+  } else {
+    // Apply search
+    const q = (window._search || '').toLowerCase().trim();
+    if (q) list = list.filter(p =>
+      (p.title || '').toLowerCase().includes(q) ||
+      (p.authors || '').toLowerCase().includes(q) ||
+      (p.tags || []).join(' ').toLowerCase().includes(q) ||
+      (p.notes || '').toLowerCase().includes(q)
+    );
+
+    html += '<div class="papers-list">';
+    list.forEach((p, i) => {
+      html += `
+        <div class="paper" data-id="${p.id}">
+          <div class="paper-num">№ ${(i+1).toString().padStart(3,'0')}</div>
+          <div class="paper-main">
+            <div class="paper-title">${escapeHtml(p.title || '(sin título)')}</div>
+            <div class="paper-meta">${escapeHtml(p.authors || 'sin autor')} <span>·</span> ${escapeHtml(p.year || '—')}${p.journal ? ' <span>·</span> <em>'+escapeHtml(p.journal)+'</em>' : ''}</div>
+            ${(p.tags && p.tags.length) ? `<div class="paper-tags">${p.tags.map(t => `<span class="tag-pill" style="border-color:${tagColor(t)}40; color:${tagColor(t)}">${escapeHtml(t)}</span>`).join('')}</div>` : ''}
+          </div>
+          <div class="paper-status">
+            <div class="read-badge ${p.status}" title="${p.status}"></div>
+            <div class="cite-key">@${escapeHtml(p.citekey || '')}</div>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+  }
+
+  c.innerHTML = html;
+
+  document.querySelectorAll('.paper').forEach(el => {
+    el.onclick = () => { currentDetailId = el.dataset.id; render(); };
+  });
+
+  const search = document.getElementById('search');
+  if (search) {
+    search.oninput = (e) => {
+      window._search = e.target.value;
+      renderLibrary(filterStatus);
+    };
+  }
+}
+
+function renderDetail() {
+  const p = papers.find(x => x.id === currentDetailId);
+  if (!p) { currentDetailId = null; render(); return; }
+
+  document.getElementById('view-title').innerHTML = '<strong>Detalle</strong> — referencia';
+
+  const bib = paperToBibtex(p);
+
+  // Find related papers (shared tags)
+  const related = papers
+    .filter(x => x.id !== p.id && x.tags && p.tags && x.tags.some(t => p.tags.includes(t)))
+    .slice(0, 5);
+
+  document.getElementById('content').innerHTML = `
+    <div class="detail-back" onclick="currentDetailId=null;render()">← Volver a la biblioteca</div>
+
+    <div class="detail-header">
+      <div class="detail-title">${escapeHtml(p.title || '(sin título)')}</div>
+      <div class="detail-authors">${escapeHtml(p.authors || 'sin autor')} <span style="color:var(--muted)">·</span> ${escapeHtml(p.year || '')}${p.journal ? ' · '+escapeHtml(p.journal) : ''}</div>
+      <div class="detail-citekey">@${escapeHtml(p.citekey)}</div>
+      <div style="margin-top:1rem; display:flex; gap:0.4rem; flex-wrap:wrap;">
+        ${(p.tags || []).map(t => `<span class="tag-pill" style="border-color:${tagColor(t)}; color:${tagColor(t)}">${escapeHtml(t)}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <div>
+        ${p.abstract ? `<div class="detail-section">
+          <h3>Abstract</h3>
+          <p>${escapeHtml(p.abstract)}</p>
+        </div>` : ''}
+
+        <div class="detail-section notes">
+          <h3>Mis notas</h3>
+          <p>${p.notes ? escapeHtml(p.notes) : '<em style="color:var(--muted)">Sin notas todavía.</em>'}</p>
+        </div>
+
+        <div class="detail-section">
+          <h3>BibTeX</h3>
+          <div class="bibtex-block">${escapeHtml(bib)}<button class="bibtex-copy" id="copy-bib">Copiar</button></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="detail-section">
+          <h3>Estado</h3>
+          <p style="font-style:italic; font-size:1.1rem;">${p.status === 'read' ? 'Leído' : p.status === 'reading' ? 'En lectura' : 'Por leer'}</p>
+        </div>
+
+        ${p.doi ? `<div class="detail-section">
+          <h3>DOI</h3>
+          <p style="font-family:monospace; font-size:0.85rem;"><a href="https://doi.org/${escapeHtml(p.doi)}" target="_blank" style="color:var(--accent); text-decoration:none;">${escapeHtml(p.doi)} ↗</a></p>
+        </div>` : ''}
+
+        ${related.length > 0 ? `<div class="detail-section">
+          <h3>Conexiones (${related.length})</h3>
+          ${related.map(r => `
+            <div style="padding:0.75rem 0; border-bottom:1px solid rgba(26,24,20,0.08); cursor:pointer;" onclick="currentDetailId='${r.id}';render()">
+              <div style="font-size:0.95rem; line-height:1.3; margin-bottom:0.2rem;">${escapeHtml(r.title.substring(0,80))}${r.title.length > 80 ? '…' : ''}</div>
+              <div style="font-family:monospace; font-size:0.7rem; color:var(--muted);">${escapeHtml(r.authors.split(' and ')[0] || '')} · ${r.year}</div>
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+        <div class="detail-section">
+          <h3>Acciones</h3>
+          <div style="display:flex; flex-direction:column; gap:0.5rem;">
+            <button class="btn" id="edit-paper">Editar</button>
+            <button class="btn ghost" id="delete-paper" style="color:var(--accent); border-color:var(--accent)">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('copy-bib').onclick = () => {
+    navigator.clipboard.writeText(bib);
+    toast('BibTeX copiado al portapapeles');
+  };
+
+  document.getElementById('edit-paper').onclick = () => openModal(p);
+  document.getElementById('delete-paper').onclick = async () => {
+    if (confirm('¿Eliminar esta referencia?')) {
+      await dbDel(p.id);
+      papers = papers.filter(x => x.id !== p.id);
+      currentDetailId = null;
+      render();
+      toast('Referencia eliminada');
+      schedulePush();
+    }
+  };
+}
+
+// ============= MAP VIEW =============
+function renderMap() {
+  document.getElementById('view-title').innerHTML = '<strong>Mapa</strong> — temas y conexiones';
+
+  const c = document.getElementById('content');
+
+  if (papers.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Añade referencias para ver el mapa.</p></div>';
+    return;
+  }
+
+  // Build node graph: tags as central nodes, papers as satellites
+  const tagPapers = {};
+  papers.forEach(p => (p.tags || []).forEach(t => {
+    if (!tagPapers[t]) tagPapers[t] = [];
+    tagPapers[t].push(p);
+  }));
+  const tags = Object.keys(tagPapers);
+
+  if (tags.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Añade temas a tus referencias para visualizar el mapa.</p></div>';
+    return;
+  }
+
+  c.innerHTML = `
+    <div style="margin-bottom:1.5rem; max-width:600px;">
+      <p style="font-style:italic; color:var(--muted); font-size:1rem; line-height:1.6;">Cada nodo central es un tema; los puntos a su alrededor son los papers que lo abordan. Las líneas muestran papers que conectan dos temas.</p>
+    </div>
+    <div class="map-container">
+      <svg id="map-svg" viewBox="0 0 1200 600"></svg>
+      <div class="map-legend">
+        <div style="font-size:0.75rem; font-family:'Fraunces'; font-style:italic; margin-bottom:0.5rem; color:var(--ink);">${tags.length} temas · ${papers.length} papers</div>
+        <div style="font-size:0.65rem; color:var(--muted);">Hover sobre un nodo para ver detalles</div>
+      </div>
+    </div>
+  `;
+
+  const svg = document.getElementById('map-svg');
+  const W = 1200, H = 600;
+  const cx = W/2, cy = H/2;
+  const R = Math.min(W, H) * 0.32;
+
+  // Position tags in a circle
+  const tagPos = {};
+  tags.forEach((t, i) => {
+    const angle = (i / tags.length) * Math.PI * 2 - Math.PI / 2;
+    tagPos[t] = {
+      x: cx + Math.cos(angle) * R,
+      y: cy + Math.sin(angle) * R
+    };
+  });
+
+  let svgHtml = '';
+
+  // Draw connections between tags (papers with multiple tags)
+  papers.forEach(p => {
+    if (!p.tags || p.tags.length < 2) return;
+    for (let i = 0; i < p.tags.length; i++) {
+      for (let j = i+1; j < p.tags.length; j++) {
+        const a = tagPos[p.tags[i]], b = tagPos[p.tags[j]];
+        if (a && b) {
+          svgHtml += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="rgba(184,68,46,0.18)" stroke-width="1.2"/>`;
+        }
+      }
+    }
+  });
+
+  // Draw paper satellites around each tag
+  tags.forEach(t => {
+    const pos = tagPos[t];
+    const tagP = tagPapers[t];
+    const sR = 38 + Math.sqrt(tagP.length) * 5;
+    tagP.forEach((p, i) => {
+      const a = (i / tagP.length) * Math.PI * 2;
+      const px = pos.x + Math.cos(a) * sR;
+      const py = pos.y + Math.sin(a) * sR;
+      const fill = p.status === 'read' ? tagColor(t) : p.status === 'reading' ? '#a8843a' : '#8a8378';
+      svgHtml += `<circle cx="${px}" cy="${py}" r="3.5" fill="${fill}" opacity="0.85" data-pid="${p.id}" style="cursor:pointer">
+        <title>${escapeHtml(p.title.substring(0,80))}${p.title.length>80?'…':''}</title>
+      </circle>`;
+    });
+  });
+
+  // Draw tag nodes
+  tags.forEach(t => {
+    const pos = tagPos[t];
+    const r = 18 + Math.min(tagPapers[t].length * 2.5, 20);
+    const col = tagColor(t);
+    svgHtml += `
+      <circle cx="${pos.x}" cy="${pos.y}" r="${r}" fill="${col}" opacity="0.18" />
+      <circle cx="${pos.x}" cy="${pos.y}" r="${r-3}" fill="none" stroke="${col}" stroke-width="2" data-tag="${escapeHtml(t)}" style="cursor:pointer"/>
+      <text x="${pos.x}" y="${pos.y + r + 18}" text-anchor="middle" fill="${col}" font-family="Fraunces" font-size="14" font-style="italic">${escapeHtml(t)}</text>
+      <text x="${pos.x}" y="${pos.y + 4}" text-anchor="middle" fill="${col}" font-family="JetBrains Mono" font-size="11" font-weight="600">${tagPapers[t].length}</text>
+    `;
+  });
+
+  svg.innerHTML = svgHtml;
+
+  svg.querySelectorAll('[data-pid]').forEach(el => {
+    el.onclick = () => { currentDetailId = el.dataset.pid; render(); };
+  });
+  svg.querySelectorAll('[data-tag]').forEach(el => {
+    el.onclick = () => {
+      currentTag = el.dataset.tag;
+      currentView = 'library';
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.view === 'library'));
+      render();
+    };
+  });
+}
+
+// ============= AI MAP (auto-extracted topics) =============
+function renderAIMap() {
+  document.getElementById('view-title').innerHTML = '<strong>Mapa IA</strong> — temas extraídos automáticamente';
+
+  const c = document.getElementById('content');
+
+  if (papers.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Añade referencias para generar el mapa.</p></div>';
+    return;
+  }
+
+  // Filter papers with usable text
+  const usable = papers.filter(p => (p.title && p.title.length > 5) || (p.abstract && p.abstract.length > 30));
+  if (usable.length < 2) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Necesito al menos 2 papers con título y abstract para extraer temas.</p></div>';
+    return;
+  }
+
+  // Compute IDF over the corpus, then assign top terms to each paper
+  const idf = buildCorpusIDF(usable);
+  const enriched = usable.map(p => {
+    const ranked = scorePaper(p, idf);
+
+    // Deduplicate sub-phrases
+    const taken = [];
+    for (const [term, score] of ranked) {
+      if (taken.some(t => t.term.includes(term) && t.term !== term)) continue;
+      const words = term.split(' ');
+      if (words.length > 1) {
+        for (let i = taken.length - 1; i >= 0; i--) {
+          if (term.split(' ').includes(taken[i].term)) taken.splice(i, 1);
+        }
+      }
+      taken.push({ term, score });
+      if (taken.length >= 6) break;
+    }
+
+    return { ...p, _aiTerms: taken.map(t => t.term), _aiScores: taken };
+  });
+
+  // Cluster
+  const clusters = clusterPapersByTopics(enriched);
+
+  if (clusters.length === 0) {
+    c.innerHTML = `
+      <div style="margin-bottom:2rem; max-width:700px;">
+        <p style="font-style:italic; color:var(--muted); font-size:1rem; line-height:1.6;">No se detectaron temas compartidos entre tus papers todavía. Esto pasa cuando hay pocos papers o tratan asuntos muy distintos.</p>
+      </div>
+      <div class="insights-grid">
+        ${enriched.slice(0, 6).map(p => `
+          <div class="insight-card">
+            <div class="meta">${escapeHtml(p.authors?.split(' and ')[0] || 'sin autor')} · ${escapeHtml(p.year || '')}</div>
+            <h4>${escapeHtml(p.title.substring(0,80))}${p.title.length>80?'…':''}</h4>
+            <div style="display:flex; flex-wrap:wrap; gap:0.3rem; margin-top:0.75rem;">
+              ${p._aiTerms.map(t => `<span class="tag-pill" style="border-color:${tagColor(t)}40; color:${tagColor(t)}">${escapeHtml(t)}</span>`).join('')}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    return;
+  }
+
+  // Sort clusters by size (number of papers)
+  clusters.sort((a,b) => b.size - a.size);
+  const topClusters = clusters.slice(0, 14);
+
+  c.innerHTML = `
+    <div style="margin-bottom:1.5rem; max-width:780px;">
+      <p style="font-style:italic; color:var(--muted); font-size:1.05rem; line-height:1.6;">
+        El sistema ha analizado <em style="color:var(--accent); font-style:normal;">${usable.length} papers</em> y extraído <em style="color:var(--accent); font-style:normal;">${topClusters.length} temas emergentes</em> a partir de patrones léxicos en títulos, abstracts y notas. Los nodos más grandes son temas más recurrentes en tu biblioteca; las líneas conectan papers que tocan múltiples temas.
+      </p>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem;">
+      <button class="btn ghost" id="btn-apply-tags">✦ Aplicar a todos los papers como temas</button>
+      <button class="btn ghost" id="btn-recompute">↻ Recalcular</button>
+    </div>
+
+    <div class="map-container">
+      <svg id="aimap-svg" viewBox="0 0 1200 600"></svg>
+      <div class="map-legend">
+        <div style="font-size:0.75rem; font-family:Fraunces; font-style:italic; margin-bottom:0.5rem; color:var(--ink);">${topClusters.length} temas detectados</div>
+        <div style="font-size:0.65rem; color:var(--muted); line-height:1.5;">El tamaño del nodo refleja cuántos papers contienen el término. Click sobre un tema para ver detalles.</div>
+      </div>
+    </div>
+
+    <div style="margin-top:2.5rem;">
+      <h3 style="font-family:JetBrains Mono; font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); margin-bottom:1rem;">Temas detectados</h3>
+      <div class="insights-grid" id="cluster-grid">
+        ${topClusters.map((cl, idx) => {
+          const examples = cl.paperIds.slice(0, 3).map(id => enriched.find(e => e.id === id));
+          return `
+            <div class="insight-card" style="border-left-color:${tagColor(cl.term)};">
+              <div class="meta">${cl.size} ${cl.size === 1 ? 'paper' : 'papers'}${cl.aliases.length > 1 ? ' · ' + (cl.aliases.length-1) + ' aliases' : ''}</div>
+              <h4 style="color:${tagColor(cl.term)}">${escapeHtml(cl.term)}</h4>
+              ${cl.aliases.length > 1 ? `<div style="font-size:0.7rem; color:var(--muted); margin-bottom:0.5rem; font-family:JetBrains Mono;">≈ ${cl.aliases.slice(1).map(a => escapeHtml(a)).join(' · ')}</div>` : ''}
+              <div style="margin-top:0.5rem;">
+                ${examples.filter(Boolean).map(p => `
+                  <div style="font-size:0.85rem; line-height:1.4; padding:0.4rem 0; border-bottom:1px solid rgba(26,24,20,0.06); cursor:pointer;" data-pid="${p.id}">
+                    <em style="color:var(--ink);">${escapeHtml(p.title.substring(0,70))}${p.title.length>70?'…':''}</em>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  // Render SVG
+  const svg = document.getElementById('aimap-svg');
+  const W = 1200, H = 600;
+  const cx = W/2, cy = H/2;
+  const R = Math.min(W, H) * 0.34;
+
+  // Layout: golden ratio spiral for organic placement
+  const tagPos = {};
+  topClusters.forEach((cl, i) => {
+    const angle = (i / topClusters.length) * Math.PI * 2 - Math.PI/2;
+    // Slight radius variation by size to add depth
+    const r = R * (0.7 + 0.3 * (i % 3) / 2);
+    tagPos[cl.term] = {
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r,
+      size: cl.size,
+      cluster: cl
+    };
+  });
+
+  let svgHtml = '';
+
+  // Draw connections: papers that appear in multiple clusters create edges
+  const paperToClusters = new Map();
+  topClusters.forEach(cl => {
+    cl.paperIds.forEach(pid => {
+      if (!paperToClusters.has(pid)) paperToClusters.set(pid, []);
+      paperToClusters.get(pid).push(cl.term);
+    });
+  });
+
+  const edgeWeight = new Map();
+  for (const [pid, cTerms] of paperToClusters.entries()) {
+    for (let i = 0; i < cTerms.length; i++) {
+      for (let j = i+1; j < cTerms.length; j++) {
+        const key = [cTerms[i], cTerms[j]].sort().join('|||');
+        edgeWeight.set(key, (edgeWeight.get(key) || 0) + 1);
+      }
+    }
+  }
+
+  for (const [key, weight] of edgeWeight.entries()) {
+    const [a, b] = key.split('|||');
+    const pa = tagPos[a], pb = tagPos[b];
+    if (pa && pb) {
+      const opacity = Math.min(0.05 + weight * 0.12, 0.55);
+      const sw = Math.min(0.8 + weight * 0.6, 3.5);
+      svgHtml += `<line x1="${pa.x}" y1="${pa.y}" x2="${pb.x}" y2="${pb.y}" stroke="var(--accent)" stroke-width="${sw}" opacity="${opacity}"/>`;
+    }
+  }
+
+  // Draw cluster nodes
+  topClusters.forEach(cl => {
+    const pos = tagPos[cl.term];
+    const radius = 14 + Math.sqrt(cl.size) * 8;
+    const col = tagColor(cl.term);
+
+    svgHtml += `
+      <g class="cluster-node" data-term="${escapeHtml(cl.term)}" style="cursor:pointer">
+        <circle cx="${pos.x}" cy="${pos.y}" r="${radius + 8}" fill="${col}" opacity="0.1"/>
+        <circle cx="${pos.x}" cy="${pos.y}" r="${radius}" fill="${col}" opacity="0.25" stroke="${col}" stroke-width="1.5"/>
+        <text x="${pos.x}" y="${pos.y + 4}" text-anchor="middle" fill="${col}" font-family="JetBrains Mono" font-size="13" font-weight="600">${cl.size}</text>
+        <text x="${pos.x}" y="${pos.y + radius + 22}" text-anchor="middle" fill="var(--ink)" font-family="Fraunces" font-size="14" font-style="italic">${escapeHtml(cl.term)}</text>
+      </g>
+    `;
+  });
+
+  svg.innerHTML = svgHtml;
+
+  // Click handlers
+  svg.querySelectorAll('.cluster-node').forEach(el => {
+    el.onclick = () => {
+      const term = el.dataset.term;
+      const card = document.querySelector(`#cluster-grid .insight-card h4[style*="${tagColor(term)}"]`);
+      if (card) card.closest('.insight-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+  });
+
+  document.querySelectorAll('[data-pid]').forEach(el => {
+    el.onclick = () => { currentDetailId = el.dataset.pid; render(); };
+  });
+
+  // Recompute button
+  document.getElementById('btn-recompute').onclick = () => render();
+
+  // Apply as tags button
+  document.getElementById('btn-apply-tags').onclick = async () => {
+    if (!confirm('Esto añadirá los temas extraídos automáticamente como etiquetas en cada paper (sin sobreescribir las que ya tienen). ¿Continuar?')) return;
+
+    let updated = 0;
+    for (const p of enriched) {
+      const existingTags = new Set((p.tags || []).map(t => t.toLowerCase()));
+      // Take top 3 terms that aren't already tags
+      const newTags = p._aiTerms.slice(0, 3).filter(t => !existingTags.has(t));
+      if (newTags.length > 0) {
+        const original = papers.find(x => x.id === p.id);
+        original.tags = [...(original.tags || []), ...newTags];
+        await dbPut(original);
+        updated++;
+      }
+    }
+    toast(`${updated} ${updated === 1 ? 'paper actualizado' : 'papers actualizados'} con nuevos temas`);
+    render();
+    if (updated > 0) schedulePush();
+  };
+}
+
+// ============= INSIGHTS =============
+function renderInsights() {
+  document.getElementById('view-title').innerHTML = '<strong>Síntesis</strong> — feedback de tu lectura';
+
+  const c = document.getElementById('content');
+
+  if (papers.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Sin referencias todavía.</p></div>';
+    return;
+  }
+
+  const total = papers.length;
+  const read = papers.filter(p => p.status === 'read').length;
+  const reading = papers.filter(p => p.status === 'reading').length;
+  const unread = papers.filter(p => p.status === 'unread').length;
+
+  // Tag distribution
+  const tagCounts = {};
+  const tagRead = {};
+  papers.forEach(p => (p.tags || []).forEach(t => {
+    tagCounts[t] = (tagCounts[t] || 0) + 1;
+    if (p.status === 'read') tagRead[t] = (tagRead[t] || 0) + 1;
+  }));
+  const sortedTags = Object.entries(tagCounts).sort((a,b) => b[1] - a[1]);
+
+  // Years
+  const years = papers.map(p => parseInt(p.year)).filter(y => !isNaN(y));
+  const yearMin = years.length ? Math.min(...years) : null;
+  const yearMax = years.length ? Math.max(...years) : null;
+
+  // Key insights
+  const dominantTopic = sortedTags[0];
+  const underReadTopics = sortedTags.filter(([t, n]) => (tagRead[t] || 0) / n < 0.5 && n >= 2);
+  const wellCovered = sortedTags.filter(([t, n]) => (tagRead[t] || 0) / n >= 0.7);
+  const isolated = papers.filter(p => !p.tags || p.tags.length === 0);
+  const multiTagged = papers.filter(p => p.tags && p.tags.length >= 2);
+
+  // Notes density (papers with substantial notes)
+  const wellNoted = papers.filter(p => p.notes && p.notes.length > 100).length;
+
+  // Generate textual synthesis
+  const synthesis = [];
+  if (dominantTopic) {
+    synthesis.push(`Tu interés dominante es <em style="color:var(--accent)">${dominantTopic[0]}</em>, presente en ${dominantTopic[1]} de ${total} referencias (${Math.round(dominantTopic[1]/total*100)}%). Esto sugiere una línea de investigación clara.`);
+  }
+  if (read / total > 0.7) {
+    synthesis.push(`Has leído el <em style="color:var(--accent)">${Math.round(read/total*100)}%</em> de tus referencias. Tu biblioteca refleja material que dominas, no solo material acumulado.`);
+  } else if (read / total < 0.3 && total > 5) {
+    synthesis.push(`Solo el <em style="color:var(--accent)">${Math.round(read/total*100)}%</em> de tus referencias están leídas. Considera consolidar lo que tienes antes de añadir más.`);
+  }
+  if (multiTagged.length > 0) {
+    synthesis.push(`<em style="color:var(--accent)">${multiTagged.length} papers</em> conectan múltiples temas. Estos son posibles puentes interdisciplinares en tu trabajo.`);
+  }
+  if (yearMin && yearMax) {
+    const span = yearMax - yearMin;
+    if (span > 15) synthesis.push(`Tu bibliografía abarca <em style="color:var(--accent)">${span} años</em> (${yearMin}–${yearMax}), un rango amplio que mezcla literatura clásica y contemporánea.`);
+    else if (span < 5 && total > 5) synthesis.push(`Tu bibliografía se concentra en <em style="color:var(--accent)">${span+1} años</em> (${yearMin}–${yearMax}); estás trabajando en literatura muy actual.`);
+  }
+
+  c.innerHTML = `
+    <div style="max-width:780px; margin-bottom:2rem;">
+      <p style="font-style:italic; font-size:1.25rem; line-height:1.5; color:var(--ink); font-weight:300;">
+        ${synthesis.length > 0 ? synthesis.join(' ') : 'Añade más referencias y temas para generar una síntesis significativa.'}
+      </p>
+    </div>
+
+    <div class="insights-grid">
+      <div class="insight-card">
+        <div class="meta">Progreso de lectura</div>
+        <h4>${read} de ${total} leídos</h4>
+        <div style="height:6px; background:rgba(26,24,20,0.08); border-radius:3px; margin:0.75rem 0; overflow:hidden;">
+          <div style="height:100%; width:${total ? (read/total*100) : 0}%; background:var(--accent);"></div>
+        </div>
+        <p style="font-size:0.85rem; color:var(--muted);">${reading} en lectura activa · ${unread} pendientes</p>
+      </div>
+
+      <div class="insight-card">
+        <div class="meta">Densidad de notas</div>
+        <h4>${wellNoted} con notas sustanciales</h4>
+        <p style="font-size:0.9rem;">${wellNoted === 0 ? 'Empieza a escribir notas en cada paper para construir conocimiento real, no solo bibliografía.' : wellNoted < total*0.3 ? 'La mayoría de tus papers no tiene notas. Las notas son donde el conocimiento se sedimenta.' : 'Buen ritmo de anotación — estás construyendo conocimiento, no solo coleccionando referencias.'}</p>
+      </div>
+
+      <div class="insight-card">
+        <div class="meta">Cobertura por tema</div>
+        <h4>Distribución de lectura</h4>
+        <ul class="gap-list" style="margin-top:0.75rem;">
+          ${sortedTags.slice(0, 6).map(([t, n]) => {
+            const r = tagRead[t] || 0;
+            const pct = (r/n) * 100;
+            return `<li>
+              <span class="gap-name">${escapeHtml(t)}</span>
+              <span class="gap-bar"><div class="gap-bar-fill" style="transform:scaleX(${pct/100});"></div></span>
+              <span style="font-family:monospace; font-size:0.7rem; color:var(--muted); min-width:50px; text-align:right;">${r}/${n}</span>
+            </li>`;
+          }).join('')}
+        </ul>
+      </div>
+
+      <div class="insight-card">
+        <div class="meta">Áreas con gaps</div>
+        <h4>${underReadTopics.length === 0 ? 'Sin gaps significativos' : 'Temas poco explorados'}</h4>
+        ${underReadTopics.length === 0 ? `<p style="font-size:0.9rem;">Estás leyendo de forma consistente en todos tus temas.</p>` : `
+          <ul class="gap-list" style="margin-top:0.5rem;">
+            ${underReadTopics.slice(0, 5).map(([t, n]) => {
+              const r = tagRead[t] || 0;
+              return `<li><span class="gap-name">${escapeHtml(t)}</span><span style="font-family:monospace; font-size:0.7rem; color:var(--accent);">${r}/${n} leídos</span></li>`;
+            }).join('')}
+          </ul>
+          <p style="font-size:0.85rem; color:var(--muted); margin-top:0.75rem; font-style:italic;">Considera priorizar la lectura en estos temas para equilibrar tu cobertura.</p>
+        `}
+      </div>
+
+      ${isolated.length > 0 ? `<div class="insight-card" style="border-left-color:var(--gold);">
+        <div class="meta">Sin clasificar</div>
+        <h4>${isolated.length} ${isolated.length === 1 ? 'referencia' : 'referencias'} sin temas</h4>
+        <p style="font-size:0.9rem;">Etiquetar tus papers conecta el conocimiento. Sin temas, una referencia es un punto aislado en tu biblioteca.</p>
+      </div>` : ''}
+
+      ${wellCovered.length > 0 ? `<div class="insight-card" style="border-left-color:var(--accent-soft);">
+        <div class="meta">Áreas dominadas</div>
+        <h4>${wellCovered.length} ${wellCovered.length === 1 ? 'tema bien cubierto' : 'temas bien cubiertos'}</h4>
+        <p style="font-size:0.9rem;">Has leído ≥70% de las referencias en: <em>${wellCovered.slice(0,3).map(([t]) => escapeHtml(t)).join(', ')}</em>. Posible base sólida para escribir.</p>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+// ============= SYNC VIEW =============
+function renderSync() {
+  document.getElementById('view-title').innerHTML = '<strong>Sincronización</strong> — GitHub Gist';
+
+  const c = document.getElementById('content');
+  const cfg = loadSyncCfg();
+  const isConfigured = !!(cfg.token && cfg.gistId);
+
+  const lastSyncStr = cfg.lastPush
+    ? new Date(cfg.lastPush).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })
+    : 'nunca';
+
+  c.innerHTML = `
+    <div style="max-width:800px;">
+
+      <div class="sync-status-large">
+        <div class="sync-dot ${syncState.status}"></div>
+        <div style="flex:1;">
+          <div style="font-family:Fraunces; font-size:1.2rem; font-style:italic;">${
+            isConfigured ? (syncState.status === 'synced' ? 'Sincronizado' : syncState.status === 'pending' ? 'Cambios pendientes' : syncState.status === 'syncing' ? 'Sincronizando…' : syncState.status === 'error' ? 'Error de sincronización' : 'Configurado') : 'Sin configurar'
+          }</div>
+          <div style="font-family:JetBrains Mono; font-size:0.7rem; color:var(--muted); margin-top:0.3rem;">
+            ${isConfigured ? `Gist: ${cfg.gistId.substring(0,12)}… · Última subida: ${lastSyncStr}` : 'Tus datos solo viven en este navegador'}
+          </div>
+        </div>
+        ${isConfigured ? `<button class="btn ghost" id="sync-now">↻ Sincronizar ahora</button>` : ''}
+      </div>
+
+      ${!isConfigured ? `
+        <div style="margin-bottom:2rem;">
+          <h3 style="font-family:Fraunces; font-style:italic; font-weight:300; font-size:1.6rem; margin-bottom:1rem;">Cómo configurarlo</h3>
+
+          <div style="display:grid; grid-template-columns:30px 1fr; gap:1rem; margin-bottom:1rem;">
+            <div style="font-family:Fraunces; font-size:1.5rem; font-style:italic; color:var(--accent);">1</div>
+            <div>
+              <p style="font-size:1rem; line-height:1.6;">Ve a <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--accent); text-decoration:none;">github.com/settings/tokens (Fine-grained) ↗</a> y crea un Personal Access Token.</p>
+              <p style="font-size:0.85rem; color:var(--muted); margin-top:0.3rem;">En <em>Repository access</em> deja "Public Repositories (read-only)". En <em>Account permissions</em> activa: <strong style="font-family:JetBrains Mono; font-size:0.75rem; background:rgba(184,68,46,0.1); padding:0.1rem 0.4rem;">Gists → Read and write</strong>. Caduca el token cuando quieras (90 días recomendado).</p>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:30px 1fr; gap:1rem; margin-bottom:1rem;">
+            <div style="font-family:Fraunces; font-size:1.5rem; font-style:italic; color:var(--accent);">2</div>
+            <div>
+              <p style="font-size:1rem; line-height:1.6;">Pega el token aquí abajo. Se guarda solo en este navegador (en localStorage).</p>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:30px 1fr; gap:1rem; margin-bottom:1rem;">
+            <div style="font-family:Fraunces; font-size:1.5rem; font-style:italic; color:var(--accent);">3</div>
+            <div>
+              <p style="font-size:1rem; line-height:1.6;">Opcionalmente, define una passphrase para cifrar tus datos antes de subirlos. Sin ella, el JSON viaja en claro al gist (que es privado pero solo cifrado en tránsito por HTTPS).</p>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:30px 1fr; gap:1rem;">
+            <div style="font-family:Fraunces; font-size:1.5rem; font-style:italic; color:var(--accent);">4</div>
+            <div>
+              <p style="font-size:1rem; line-height:1.6;">En el segundo ordenador, repite con el mismo token y la misma passphrase. La app pulleará los datos automáticamente.</p>
+            </div>
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="sync-form-section">
+        <h4>${isConfigured ? 'Configuración actual' : 'Configurar nuevo sync'}</h4>
+
+        <label>GitHub Personal Access Token</label>
+        <input type="password" id="cfg-token" placeholder="github_pat_..." value="${cfg.token ? '••••••••••••••••' + cfg.token.slice(-4) : ''}">
+
+        <label>Gist ID <span style="text-transform:none; letter-spacing:0; color:var(--muted); font-style:italic;">(opcional — déjalo vacío para crear uno nuevo)</span></label>
+        <input type="text" id="cfg-gistid" placeholder="se creará automáticamente" value="${cfg.gistId || ''}">
+
+        <label>Passphrase de cifrado <span style="text-transform:none; letter-spacing:0; color:var(--muted); font-style:italic;">(opcional pero recomendada)</span></label>
+        <input type="password" id="cfg-pass" placeholder="frase secreta para cifrar tus notas" value="${cfg.passphrase ? '••••••••••' : ''}">
+
+        <div style="display:flex; gap:0.5rem; margin-top:1.5rem; flex-wrap:wrap;">
+          <button class="btn primary" id="cfg-save">${isConfigured ? 'Actualizar configuración' : 'Conectar y crear gist'}</button>
+          ${isConfigured ? `<button class="btn ghost" id="cfg-pull" style="border-color:rgba(26,24,20,0.3);">↓ Descargar datos remotos</button>` : ''}
+          ${isConfigured ? `<button class="btn ghost" id="cfg-disconnect" style="color:var(--accent); border-color:var(--accent);">Desconectar</button>` : ''}
+        </div>
+
+        <p style="font-size:0.8rem; color:var(--muted); margin-top:1rem; line-height:1.5; font-style:italic;">
+          Tu token nunca se comparte con nadie excepto GitHub. Solo se guarda en localStorage de este navegador. La passphrase no se envía a ningún sitio (cifra/descifra todo en tu máquina).
+        </p>
+      </div>
+
+      ${isConfigured ? `
+        <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid rgba(26,24,20,0.1);">
+          <h4 style="font-family:JetBrains Mono; font-size:0.7rem; letter-spacing:0.2em; text-transform:uppercase; color:var(--muted); margin-bottom:1rem;">Cómo usar en otro ordenador</h4>
+          <p style="font-size:0.95rem; line-height:1.7; color:var(--ink);">Abre este HTML en el otro ordenador, ve a la vista de Sincronización, y pega el mismo token, el mismo Gist ID (lo ves arriba: <code style="font-family:JetBrains Mono; background:var(--paper-dark); padding:0.15rem 0.4rem; font-size:0.85rem;">${cfg.gistId}</code>) y la misma passphrase. Pulsa "Conectar" y luego "Descargar datos remotos".</p>
+          <button class="btn ghost" id="copy-gistid" style="margin-top:0.75rem;">Copiar Gist ID</button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  // Event handlers
+  const tokenInput = document.getElementById('cfg-token');
+  const gistInput = document.getElementById('cfg-gistid');
+  const passInput = document.getElementById('cfg-pass');
+
+  // Clear placeholder mask on focus
+  tokenInput.onfocus = () => { if (tokenInput.value.startsWith('••')) tokenInput.value = ''; };
+  passInput.onfocus = () => { if (passInput.value.startsWith('••')) passInput.value = ''; };
+
+  document.getElementById('cfg-save').onclick = async () => {
+    const newCfg = { ...loadSyncCfg() };
+    const tokenVal = tokenInput.value.trim();
+    const passVal = passInput.value.trim();
+    const gistVal = gistInput.value.trim();
+
+    if (tokenVal && !tokenVal.startsWith('••')) newCfg.token = tokenVal;
+    if (passVal && !passVal.startsWith('••')) newCfg.passphrase = passVal;
+    if (gistVal) newCfg.gistId = gistVal;
+
+    if (!newCfg.token) { toast('Falta el token'); return; }
+
+    try {
+      // If no gist ID, create one
+      if (!newCfg.gistId) {
+        toast('Creando gist privado…');
+        newCfg.gistId = await createGist(newCfg.token);
+      } else {
+        // Verify access to existing gist
+        toast('Verificando acceso al gist…');
+        await fetchGist(newCfg.gistId, newCfg.token);
+      }
+
+      saveSyncCfg(newCfg);
+      syncState.status = 'synced';
+      syncState.message = 'configurado';
+      updateSyncIndicator();
+      toast('Sync configurado correctamente');
+
+      // Initial push
+      await syncPush();
+      render();
+    } catch (err) {
+      console.error(err);
+      toast('Error: ' + err.message.substring(0, 60));
+      syncState.status = 'error';
+      syncState.message = 'verifica el token';
+      updateSyncIndicator();
+    }
+  };
+
+  if (isConfigured) {
+    document.getElementById('cfg-pull').onclick = async () => {
+      try {
+        toast('Descargando datos remotos…');
+        const { remotePapers } = await syncPull();
+
+        if (papers.length === 0) {
+          // Empty local — just adopt remote
+          for (const r of remotePapers) {
+            if (!r.id) r.id = uid();
+            await dbPut(r);
+            papers.push(r);
+          }
+          papers.sort((a,b) => (b.added || 0) - (a.added || 0));
+          syncState.status = 'synced';
+          syncState.message = 'descargado';
+          updateSyncIndicator();
+          toast(`${remotePapers.length} referencias descargadas`);
+          render();
+        } else {
+          const choice = confirm(`Tienes ${papers.length} referencias locales y ${remotePapers.length} remotas. ¿Fusionar? (Cancelar = solo descargar y reemplazar)`);
+          if (choice) {
+            const result = await mergeRemoteIntoLocal(remotePapers);
+            toast(`Fusión: ${result.added} añadidas, ${result.updated} actualizadas, ${result.kept} sin cambios`);
+          } else {
+            for (const p of papers) await dbDel(p.id);
+            papers = [];
+            for (const r of remotePapers) {
+              if (!r.id) r.id = uid();
+              await dbPut(r);
+              papers.push(r);
+            }
+            papers.sort((a,b) => (b.added || 0) - (a.added || 0));
+            toast(`${remotePapers.length} referencias descargadas (reemplazo)`);
+          }
+          syncState.status = 'synced';
+          syncState.message = 'sincronizado';
+          updateSyncIndicator();
+          render();
+        }
+      } catch (err) {
+        console.error(err);
+        toast('Error al descargar: ' + err.message.substring(0, 50));
+      }
+    };
+
+    document.getElementById('cfg-disconnect').onclick = () => {
+      if (!confirm('¿Desconectar la sincronización? Los datos locales se mantienen, pero ya no se sincronizarán automáticamente.')) return;
+      localStorage.removeItem(SYNC_CFG_KEY);
+      syncState.status = 'off';
+      syncState.message = 'no configurado';
+      updateSyncIndicator();
+      render();
+      toast('Sync desconectado');
+    };
+
+    const syncNowBtn = document.getElementById('sync-now');
+    if (syncNowBtn) syncNowBtn.onclick = async () => {
+      try { await syncPush(); toast('Sincronizado'); }
+      catch (err) { toast('Error: ' + err.message.substring(0, 50)); }
+    };
+
+    const copyBtn = document.getElementById('copy-gistid');
+    if (copyBtn) copyBtn.onclick = () => {
+      navigator.clipboard.writeText(cfg.gistId);
+      toast('Gist ID copiado');
+    };
+  }
+}
+
+// ============= EXPORT =============
+function renderExport() {
+  document.getElementById('view-title').innerHTML = '<strong>Exportar</strong> — archivo .bib';
+
+  const c = document.getElementById('content');
+
+  if (papers.length === 0) {
+    c.innerHTML = '<div class="empty"><div class="empty-mark">∅</div><p>Sin referencias para exportar.</p></div>';
+    return;
+  }
+
+  const allBib = papers.map(paperToBibtex).join('\n\n');
+
+  c.innerHTML = `
+    <div style="max-width:780px; margin-bottom:2rem;">
+      <p style="font-style:italic; font-size:1.1rem; line-height:1.6; color:var(--muted);">${papers.length} ${papers.length === 1 ? 'entrada' : 'entradas'} listas para exportar. Descarga el .bib o copia al portapapeles para usar en LaTeX.</p>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+      <button class="btn primary" id="dl-bib">↓ Descargar references.bib</button>
+      <button class="btn" id="copy-all-bib">Copiar todo</button>
+      <button class="btn ghost" id="export-json">Backup JSON</button>
+      <button class="btn ghost" id="import-json">↑ Importar JSON</button>
+      <input type="file" id="import-json-input" accept="application/json" hidden>
+    </div>
+
+    <div class="bibtex-block" style="max-height:500px; overflow-y:auto;">${escapeHtml(allBib)}</div>
+  `;
+
+  document.getElementById('dl-bib').onclick = () => {
+    const blob = new Blob([allBib], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'references.bib';
+    a.click();
+    toast('Archivo descargado');
+  };
+
+  document.getElementById('copy-all-bib').onclick = () => {
+    navigator.clipboard.writeText(allBib);
+    toast('BibTeX copiado');
+  };
+
+  document.getElementById('export-json').onclick = () => {
+    const blob = new Blob([JSON.stringify(papers, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'atlas-backup.json';
+    a.click();
+    toast('Backup JSON descargado');
+  };
+
+  document.getElementById('import-json').onclick = () => {
+    document.getElementById('import-json-input').click();
+  };
+
+  document.getElementById('import-json-input').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = JSON.parse(text);
+      if (!Array.isArray(imported)) { toast('Archivo no válido: se esperaba un array'); return; }
+
+      const choice = papers.length > 0
+        ? confirm(`Tienes ${papers.length} referencias locales. ¿Fusionar con las ${imported.length} importadas? (Cancelar = reemplazar todo)`)
+        : true;
+
+      if (!choice) {
+        // Replace all
+        for (const p of papers) await dbDel(p.id);
+        papers = [];
+      }
+
+      let added = 0, updated = 0;
+      for (const p of imported) {
+        if (!p.id) p.id = uid();
+        const existing = papers.find(x => x.id === p.id || (x.citekey && x.citekey === p.citekey));
+        if (existing) {
+          // Keep most recently added
+          if ((p.added || 0) > (existing.added || 0)) {
+            Object.assign(existing, p);
+            await dbPut(existing);
+            updated++;
+          }
+        } else {
+          await dbPut(p);
+          papers.unshift(p);
+          added++;
+        }
+      }
+      render();
+      toast(`Importado: ${added} nuevas, ${updated} actualizadas`);
+      if (added > 0 || updated > 0) schedulePush();
+    } catch (err) {
+      console.error(err);
+      toast('Error al leer el archivo JSON');
+    }
+  };
+}
+
+// ============= MODAL =============
+function openModal(paper = null) {
+  const m = document.getElementById('modal-add');
+  m.classList.add('open');
+
+  document.getElementById('f-title').value = paper ? paper.title || '' : '';
+  document.getElementById('f-authors').value = paper ? paper.authors || '' : '';
+  document.getElementById('f-year').value = paper ? paper.year || '' : '';
+  document.getElementById('f-journal').value = paper ? paper.journal || '' : '';
+  document.getElementById('f-type').value = paper ? paper.type || 'article' : 'article';
+  document.getElementById('f-doi').value = paper ? paper.doi || '' : '';
+  document.getElementById('f-citekey').value = paper ? paper.citekey || '' : '';
+  document.getElementById('f-tags').value = paper ? (paper.tags || []).join(', ') : '';
+  document.getElementById('f-status').value = paper ? paper.status || 'unread' : 'unread';
+  document.getElementById('f-abstract').value = paper ? paper.abstract || '' : '';
+  document.getElementById('f-notes').value = paper ? paper.notes || '' : '';
+  document.getElementById('suggested-tags').innerHTML = '';
+
+  m._editId = paper ? paper.id : null;
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('[data-close]').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.modal-bg').forEach(m => m.classList.remove('open'));
+  };
+});
+
+document.getElementById('btn-add').onclick = () => openModal();
+document.getElementById('btn-import').onclick = () => {
+  document.getElementById('bibtex-input').value = '';
+  document.getElementById('modal-import').classList.add('open');
+};
+
+document.getElementById('save-paper').onclick = async () => {
+  const m = document.getElementById('modal-add');
+  const title = document.getElementById('f-title').value.trim();
+  if (!title) { toast('El título es obligatorio'); return; }
+
+  const authors = document.getElementById('f-authors').value.trim();
+  const year = document.getElementById('f-year').value.trim();
+  let citekey = document.getElementById('f-citekey').value.trim();
+  if (!citekey) citekey = genCiteKey(authors, year, title);
+
+  const tags = document.getElementById('f-tags').value
+    .split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+
+  const data = {
+    id: m._editId || uid(),
+    title,
+    authors,
+    year,
+    journal: document.getElementById('f-journal').value.trim(),
+    type: document.getElementById('f-type').value,
+    doi: document.getElementById('f-doi').value.trim(),
+    citekey,
+    tags,
+    status: document.getElementById('f-status').value,
+    abstract: document.getElementById('f-abstract').value.trim(),
+    notes: document.getElementById('f-notes').value.trim(),
+    added: m._editId ? (papers.find(p => p.id === m._editId)?.added || Date.now()) : Date.now()
+  };
+
+  await dbPut(data);
+  if (m._editId) {
+    const idx = papers.findIndex(p => p.id === m._editId);
+    papers[idx] = data;
+  } else {
+    papers.unshift(data);
+  }
+
+  closeModal('modal-add');
+  render();
+  toast(m._editId ? 'Referencia actualizada' : 'Referencia añadida');
+  schedulePush();
+};
+
+document.getElementById('parse-bibtex').onclick = async () => {
+  const text = document.getElementById('bibtex-input').value;
+  const entries = parseBibtex(text);
+  if (entries.length === 0) { toast('No se detectaron entradas válidas'); return; }
+  for (const e of entries) {
+    await dbPut(e);
+    papers.unshift(e);
+  }
+  closeModal('modal-import');
+  render();
+  toast(`${entries.length} ${entries.length === 1 ? 'entrada importada' : 'entradas importadas'}`);
+  schedulePush();
+};
+
+// PDF DROP
+const dropZone = document.getElementById('drop-zone');
+const pdfInput = document.getElementById('pdf-input');
+
+dropZone.onclick = () => pdfInput.click();
+dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('over'); };
+dropZone.ondragleave = () => dropZone.classList.remove('over');
+dropZone.ondrop = (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  if (e.dataTransfer.files.length) handlePDF(e.dataTransfer.files[0]);
+};
+pdfInput.onchange = (e) => { if (e.target.files.length) handlePDF(e.target.files[0]); };
+
+async function handlePDF(file) {
+  if (file.type !== 'application/pdf') { toast('Solo se aceptan archivos PDF'); return; }
+  toast('Extrayendo metadatos…');
+  try {
+    const meta = await extractPDFMeta(file);
+    if (meta.title) document.getElementById('f-title').value = meta.title;
+    if (meta.authors) document.getElementById('f-authors').value = meta.authors;
+    if (meta.year) document.getElementById('f-year').value = meta.year;
+    if (meta.doi) document.getElementById('f-doi').value = meta.doi;
+    if (meta.abstract) document.getElementById('f-abstract').value = meta.abstract;
+    toast('Metadatos extraídos — revisa y ajusta');
+  } catch (err) {
+    console.error(err);
+    toast('No se pudieron extraer metadatos');
+  }
+}
+
+// AUTO-SUGGEST TAGS
+document.getElementById('auto-tags').onclick = () => {
+  const title = document.getElementById('f-title').value.trim();
+  const abstract = document.getElementById('f-abstract').value.trim();
+  const notes = document.getElementById('f-notes').value.trim();
+
+  if (!title && !abstract && !notes) {
+    toast('Necesito al menos título o abstract para sugerir temas');
+    return;
+  }
+
+  const tempPaper = { title, abstract, notes };
+  // Build corpus from existing papers EXCLUDING the one being edited (to avoid self-bias)
+  const editId = document.getElementById('modal-add')._editId;
+  const corpus = papers.filter(p => p.id !== editId);
+  const suggested = suggestTagsForPaper(tempPaper, corpus, 8);
+
+  const container = document.getElementById('suggested-tags');
+  if (suggested.length === 0) {
+    container.innerHTML = '<span style="font-size:0.75rem; color:var(--muted); font-style:italic;">No se detectaron términos significativos</span>';
+    return;
+  }
+
+  container.innerHTML = '<span style="font-family:JetBrains Mono; font-size:0.6rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); margin-right:0.5rem; padding-top:0.3rem;">Sugeridos →</span>' +
+    suggested.map(t => `<button type="button" class="suggested-tag" data-tag="${escapeHtml(t)}" style="font-family:JetBrains Mono; font-size:0.7rem; padding:0.3rem 0.7rem; background:rgba(184,68,46,0.08); border:1px solid var(--accent); color:var(--accent); cursor:pointer; border-radius:1px;">+ ${escapeHtml(t)}</button>`).join('');
+
+  container.querySelectorAll('.suggested-tag').forEach(btn => {
+    btn.onclick = () => {
+      const input = document.getElementById('f-tags');
+      const current = input.value.split(',').map(s => s.trim()).filter(Boolean);
+      const newTag = btn.dataset.tag;
+      if (!current.includes(newTag)) {
+        current.push(newTag);
+        input.value = current.join(', ');
+      }
+      btn.style.opacity = '0.4';
+      btn.style.pointerEvents = 'none';
+      btn.textContent = '✓ ' + newTag;
+    };
+  });
+};
+
+// NAV
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.onclick = () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    currentView = el.dataset.view;
+    currentTag = null;
+    currentDetailId = null;
+    window._search = '';
+    render();
+  };
+});
+
+// INIT
+(async () => {
+  await openDB();
+  papers = await dbAll();
+  papers.sort((a,b) => (b.added || 0) - (a.added || 0));
+
+  const cfg = loadSyncCfg();
+  if (cfg.token && cfg.gistId) {
+    syncState.status = 'synced';
+    syncState.message = cfg.lastPush ? 'sincronizado' : 'configurado';
+  }
+  updateSyncIndicator();
+  render();
+
+  // Auto-pull on startup if configured (silent — only update if remote is newer)
+  if (cfg.token && cfg.gistId) {
+    setTimeout(async () => {
+      try {
+        const { remotePapers } = await syncPull();
+        // Only auto-merge if local is empty; otherwise just mark as synced and let user manually pull
+        if (papers.length === 0 && remotePapers.length > 0) {
+          for (const r of remotePapers) {
+            if (!r.id) r.id = uid();
+            await dbPut(r);
+            papers.push(r);
+          }
+          papers.sort((a,b) => (b.added || 0) - (a.added || 0));
+          render();
+          toast(`${remotePapers.length} referencias sincronizadas desde la nube`);
+        }
+        syncState.status = 'synced';
+        syncState.message = 'al día';
+        updateSyncIndicator();
+      } catch (err) {
+        console.warn('Sync pull failed:', err);
+        syncState.status = 'error';
+        syncState.message = 'sin conexión';
+        updateSyncIndicator();
+      }
+    }, 500);
+  }
+})();
+
+</script>
+</body>
+</html>
